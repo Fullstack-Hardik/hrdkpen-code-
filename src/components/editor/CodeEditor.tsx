@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import Editor from '@monaco-editor/react';
+import { emmetHTML, emmetCSS } from 'emmet-monaco-es';
 import { Button } from '@/components/ui/button';
 import { Play, Save, Download, RotateCcw } from 'lucide-react';
 
@@ -8,9 +9,10 @@ interface CodeEditorProps {
   onChange: (value: string) => void;
   language: string;
   fileName: string;
+  onRun?: (code: string, language: string, fileName: string) => void;
 }
 
-export const CodeEditor = ({ value, onChange, language, fileName }: CodeEditorProps) => {
+export const CodeEditor = ({ value, onChange, language, fileName, onRun }: CodeEditorProps) => {
   const editorRef = useRef<any>(null);
   const [isRunning, setIsRunning] = useState(false);
 
@@ -43,6 +45,31 @@ export const CodeEditor = ({ value, onChange, language, fileName }: CodeEditorPr
     
     monaco.editor.setTheme('smart-dark');
     
+    // Enable Emmet and enhance language services
+    try {
+      emmetHTML(monaco);
+      emmetCSS(monaco);
+    } catch (e) {
+      console.warn('Emmet init failed', e);
+    }
+
+    // Stronger JS/TS IntelliSense
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false });
+    monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false });
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+      allowJs: true,
+      checkJs: false,
+      allowNonTsExtensions: true,
+      module: monaco.languages.typescript.ModuleKind.ESNext,
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      lib: ['es2020', 'dom'],
+    });
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      module: monaco.languages.typescript.ModuleKind.ESNext,
+      lib: ['es2020', 'dom'],
+    });
+    
     // Add keyboard shortcuts
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       handleSave();
@@ -61,8 +88,9 @@ export const CodeEditor = ({ value, onChange, language, fileName }: CodeEditorPr
   const handleRun = () => {
     if (language === 'javascript' || language === 'typescript') {
       setIsRunning(true);
-      // Run code functionality will be implemented
-      setTimeout(() => setIsRunning(false), 1000);
+      const code = editorRef.current?.getValue?.() ?? value;
+      onRun?.(code, language, fileName);
+      setTimeout(() => setIsRunning(false), 200);
     }
   };
 
@@ -158,6 +186,14 @@ export const CodeEditor = ({ value, onChange, language, fileName }: CodeEditorPr
             cursorBlinking: 'smooth',
             cursorSmoothCaretAnimation: true,
             renderWhitespace: 'selection',
+            autoIndent: 'full',
+            autoClosingBrackets: 'always',
+            autoClosingQuotes: 'always',
+            autoClosingOvertype: 'auto',
+            suggestOnTriggerCharacters: true,
+            tabCompletion: 'on',
+            snippetSuggestions: 'inline',
+            wordBasedSuggestions: 'currentDocument',
             bracketPairColorization: { enabled: true },
             guides: {
               bracketPairs: true,

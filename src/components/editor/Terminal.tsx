@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,7 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react';
+import type { FileNode } from './FileExplorer';
 
 interface TerminalOutput {
   id: string;
@@ -22,19 +23,29 @@ interface TerminalOutput {
 
 interface TerminalProps {
   onExecuteCode?: (code: string, language: string) => void;
+  getFileSystem?: () => FileNode[];
+  name?: string;
+  showHeader?: boolean;
+  onExit?: () => void;
 }
 
-export const Terminal = ({ onExecuteCode }: TerminalProps) => {
+export type TerminalHandle = {
+  runJS: (code: string) => void;
+  runTS: (code: string) => void;
+  execute: (cmd: string) => void;
+};
+export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCode, getFileSystem, name = 'Terminal', showHeader = true, onExit }, ref) => {
   const [output, setOutput] = useState<TerminalOutput[]>([
     {
       id: '1',
       type: 'success',
-      content: 'Smart Code Editor Terminal v1.0.0 - Ready!',
+      content: `${name} v1.0.0 - Ready!`,
       timestamp: new Date()
     }
   ]);
   const [command, setCommand] = useState('');
   const [isExecuting, setIsExecuting] = useState(false);
+  const [cwd, setCwd] = useState<string>('/');
   const terminalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,18 +69,15 @@ export const Terminal = ({ onExecuteCode }: TerminalProps) => {
     if (!command.trim()) return;
 
     setIsExecuting(true);
-    addOutput('input', `$ ${command}`);
+    addOutput('input', `${cwd} $ ${command}`);
 
-    // Handle different command types
     try {
       if (command.startsWith('js ') || command.startsWith('javascript ')) {
-        // Execute JavaScript
         const code = command.replace(/^(js|javascript)\s+/, '');
-        executeJavaScript(code);
+        runJavaScript(code);
       } else if (command.startsWith('ts ') || command.startsWith('typescript ')) {
-        // Execute TypeScript (simplified - would need proper compilation)
         const code = command.replace(/^(ts|typescript)\s+/, '');
-        executeJavaScript(code); // For now, treat as JS
+        runJavaScript(code); // simplified TS support
       } else if (command === 'clear') {
         setOutput([]);
       } else if (command === 'help') {
@@ -77,9 +85,26 @@ export const Terminal = ({ onExecuteCode }: TerminalProps) => {
       } else if (command.startsWith('echo ')) {
         const message = command.replace('echo ', '');
         addOutput('output', message);
+      } else if (command === 'pwd') {
+        addOutput('output', cwd);
+      } else if (command === 'ls') {
+        const list = listDir(cwd);
+        addOutput('output', list.join('  '));
+      } else if (command.startsWith('cd ')) {
+        const path = command.replace('cd ', '').trim();
+        const next = resolvePath(cwd, path);
+        if (isDir(next)) {
+          setCwd(next);
+          addOutput('success', `Directory changed to ${next}`);
+        } else {
+          addOutput('error', `No such directory: ${path}`);
+        }
+      } else if (command === 'exit' || command === 'kill') {
+        addOutput('success', 'Session terminated');
+        onExit?.();
       } else {
         // Try to execute as JavaScript by default
-        executeJavaScript(command);
+        runJavaScript(command);
       }
     } catch (error) {
       addOutput('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -89,31 +114,23 @@ export const Terminal = ({ onExecuteCode }: TerminalProps) => {
     setIsExecuting(false);
   };
 
-  const executeJavaScript = (code: string) => {
+  const runJavaScript = (code: string) => {
     try {
-      // Create a safe execution context
       const originalConsole = console.log;
       const logs: string[] = [];
-      
-      // Override console.log to capture output
       console.log = (...args) => {
-        logs.push(args.map(arg => 
+        logs.push(args.map(arg =>
           typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
         ).join(' '));
       };
 
-      // Execute the code
       const result = eval(code);
-      
-      // Restore console.log
       console.log = originalConsole;
-      
-      // Show captured logs
+
       if (logs.length > 0) {
         logs.forEach(log => addOutput('output', log));
       }
-      
-      // Show result if it's not undefined
+
       if (result !== undefined) {
         const resultStr = typeof result === 'object' 
           ? JSON.stringify(result, null, 2) 
@@ -132,7 +149,11 @@ Available commands:
 • ts <code>        - Execute TypeScript code
 • echo <message>   - Print message
 • clear            - Clear terminal
+• cd <dir>         - Change directory
+• ls               - List directory contents
+• pwd              - Print working directory
 • help             - Show this help
+• kill | exit      - Close current terminal session
 
 Examples:
 • js console.log("Hello World!")
@@ -171,6 +192,40 @@ Examples:
     URL.revokeObjectURL(url);
   };
 
+  // FS helpers
+  const splitPath = (path: string) => path.split('/').filter(Boolean);
+  const isDir = (path: string) => {
+    const segments = splitPath(path);
+    let nodes = getFileSystem ? getFileSystem() : [];
+    if (segments.length === 0) return true;
+    for (const seg of segments) {
+      const next = nodes.find(n => n.type === 'folder' && n.name === seg);
+      if (!next) return false;
+      nodes = next.children || [];
+    }
+    return true;
+  };
+  const listDir = (path: string): string[] => {
+    const segments = splitPath(path);
+    let nodes = getFileSystem ? getFileSystem() : [];
+    for (const seg of segments) {
+      const next = nodes.find(n => n.type === 'folder' && n.name === seg);
+      if (!next) return [];
+      nodes = next.children || [];
+    }
+    return nodes.map(n => n.name + (n.type === 'folder' ? '/' : ''));
+  };
+  const resolvePath = (base: string, next: string) => {
+    if (next.startsWith('/')) return next;
+    const parts = [...splitPath(base), ...splitPath(next)];
+    const stack: string[] = [];
+    for (const p of parts) {
+      if (p === '.') continue;
+      if (p === '..') stack.pop();
+      else stack.push(p);
+    }
+    return '/' + stack.join('/');
+  };
   const getOutputIcon = (type: TerminalOutput['type']) => {
     switch (type) {
       case 'error':
@@ -253,7 +308,7 @@ Examples:
 
       {/* Command Input */}
       <div className="flex items-center gap-2 p-4 border-t border-border">
-        <span className="text-editor-accent font-mono">$</span>
+        <span className="text-editor-accent font-mono">{cwd} $</span>
         <Input
           value={command}
           onChange={(e) => setCommand(e.target.value)}
@@ -281,4 +336,4 @@ Examples:
       </div>
     </div>
   );
-};
+});

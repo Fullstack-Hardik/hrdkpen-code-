@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -9,7 +9,8 @@ import {
   FolderPlus, 
   MoreHorizontal,
   Trash2,
-  Edit3
+  Edit3,
+  Upload
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -35,6 +36,7 @@ interface FileExplorerProps {
   onFileDelete: (id: string) => void;
   onFileRename: (id: string, newName: string) => void;
   selectedFileId?: string;
+  onImportFolder?: (files: { path: string; content: string }[]) => void;
 }
 
 export const FileExplorer = ({ 
@@ -43,11 +45,15 @@ export const FileExplorer = ({
   onFileCreate, 
   onFileDelete, 
   onFileRename,
-  selectedFileId 
+  selectedFileId, 
+  onImportFolder,
 }: FileExplorerProps) => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
+  const [creatingFile, setCreatingFile] = useState(false);
+  const [newFileName, setNewFileName] = useState('');
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   const toggleFolder = (id: string) => {
     const newExpanded = new Set(expandedFolders);
@@ -182,8 +188,9 @@ export const FileExplorer = ({
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={() => onFileCreate('new-file.txt', 'file')}
+            onClick={() => setCreatingFile(true)}
             className="h-6 w-6 p-0"
+            title="New File"
           >
             <Plus className="w-3 h-3" />
           </Button>
@@ -192,11 +199,69 @@ export const FileExplorer = ({
             size="sm" 
             onClick={() => onFileCreate('new-folder', 'folder')}
             className="h-6 w-6 p-0"
+            title="New Folder"
           >
             <FolderPlus className="w-3 h-3" />
           </Button>
+          {onImportFolder && (
+            <>
+              <input
+                ref={folderInputRef}
+                type="file"
+                webkitdirectory="true"
+                multiple
+                className="hidden"
+                onChange={async (e) => {
+                  const files = Array.from(e.target.files || []);
+                  const reads = await Promise.all(
+                    files.map((f: any) =>
+                      new Promise<{ path: string; content: string }>((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve({ path: (f as any).webkitRelativePath || f.name, content: String(reader.result || '') });
+                        reader.readAsText(f);
+                      })
+                    )
+                  );
+                  onImportFolder(reads);
+                  e.currentTarget.value = '';
+                }}
+              />
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => folderInputRef.current?.click()}
+                className="h-6 w-6 p-0"
+                title="Import Folder"
+              >
+                <Upload className="w-3 h-3" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
+      {/* New file inline input */}
+      {creatingFile && (
+        <div className="px-2 py-1">
+          <Input
+            value={newFileName}
+            onChange={(e) => setNewFileName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && newFileName.trim()) {
+                onFileCreate(newFileName.trim(), 'file');
+                setCreatingFile(false);
+                setNewFileName('');
+              }
+              if (e.key === 'Escape') {
+                setCreatingFile(false);
+                setNewFileName('');
+              }
+            }}
+            placeholder="e.g. index.js"
+            className="h-7 text-xs bg-editor-panel border-editor-border focus:border-editor-accent"
+            autoFocus
+          />
+        </div>
+      )}
       
       {/* File Tree */}
       <div className="overflow-auto flex-1 p-2">

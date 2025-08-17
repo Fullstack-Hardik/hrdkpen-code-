@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SystemHeader } from './SystemHeader';
 import { FileExplorer, FileNode } from './FileExplorer';
 import { CodeEditor } from './CodeEditor';
 import { LivePreview } from './LivePreview';
 import { Terminal } from './Terminal';
+import { MultiTerminal, MultiTerminalHandle } from './MultiTerminal';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,7 @@ import {
   FileText,
   X
 } from 'lucide-react';
+import { ChatPanel } from './ChatPanel';
 
 // Default file structure
 const defaultFiles: FileNode[] = [
@@ -319,6 +321,7 @@ export const SmartCodeEditor = () => {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [bottomPanelVisible, setBottomPanelVisible] = useState(true);
   const [activeBottomTab, setActiveBottomTab] = useState('preview');
+  const multiTerminalRef = useRef<MultiTerminalHandle>(null);
 
   // Auto-save functionality
   useEffect(() => {
@@ -421,7 +424,7 @@ export const SmartCodeEditor = () => {
   };
 
   const handleFileCreate = (name: string, type: 'file' | 'folder', parentId?: string) => {
-    const newFile: FileNode = {
+    const newNode: FileNode = {
       id: `${type}-${Date.now()}`,
       name,
       type,
@@ -430,8 +433,8 @@ export const SmartCodeEditor = () => {
       children: type === 'folder' ? [] : undefined
     };
 
-    // For now, add to root
-    setFiles(prev => [...prev, newFile]);
+    // Insert into root (basic). Could be extended to use parentId.
+    setFiles(prev => [...prev, newNode]);
   };
 
   const handleFileDelete = (fileId: string) => {
@@ -512,136 +515,174 @@ export const SmartCodeEditor = () => {
   const activeFile = openTabs.find(tab => tab.id === activeTab);
   const previewContent = getPreviewContent();
 
+  // Import folder handler
+  const handleImportFolder = (items: { path: string; content: string }[]) => {
+    setFiles((prev) => {
+      const root = [...prev];
+      const ensureFolder = (segments: string[], nodes: FileNode[]): FileNode[] => {
+        if (segments.length === 0) return nodes;
+        const [head, ...tail] = segments;
+        let folder = nodes.find((n) => n.type === 'folder' && n.name === head);
+        if (!folder) {
+          folder = { id: `folder-${Date.now()}-${head}`, name: head, type: 'folder', children: [], isOpen: true };
+          nodes.push(folder);
+        }
+        folder.children = ensureFolder(tail, folder.children || []);
+        return nodes;
+      };
+      const addFile = (path: string, content: string) => {
+        const parts = path.split('/').filter(Boolean);
+        const fileName = parts.pop() as string;
+        const folders = parts;
+        ensureFolder(folders, root);
+        // Navigate to target folder
+        let nodes: FileNode[] = root;
+        for (const f of folders) {
+          const next = nodes.find((n) => n.type === 'folder' && n.name === f) as FileNode;
+          nodes = next.children || (next.children = []);
+        }
+        nodes.push({
+          id: `file-${Date.now()}-${fileName}`,
+          name: fileName,
+          type: 'file',
+          content,
+          language: getLanguageFromExtension(fileName),
+        });
+      };
+      items.forEach((it) => addFile(it.path, it.content));
+      return root;
+    });
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-editor-bg">
       {/* Header */}
       <SystemHeader />
       
       {/* Main Editor Layout */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        {sidebarVisible && (
-          <div className="w-64 border-r border-border">
-            <FileExplorer
-              files={files}
-              onFileSelect={handleFileSelect}
-              onFileCreate={handleFileCreate}
-              onFileDelete={handleFileDelete}
-              onFileRename={handleFileRename}
-              selectedFileId={activeTab}
-            />
-          </div>
-        )}
-        
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* File Tabs */}
-          <div className="flex items-center bg-editor-sidebar border-b border-border px-2 py-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSidebarVisible(!sidebarVisible)}
-              className="mr-2 h-7 w-7 p-0"
-            >
-              {sidebarVisible ? <SidebarClose className="w-3 h-3" /> : <SidebarOpen className="w-3 h-3" />}
-            </Button>
-            
-            <div className="flex flex-1 overflow-x-auto">
-              {openTabs.map(tab => (
-                <div
-                  key={tab.id}
-                  className={`
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden">
+          {/* Sidebar */}
+          {sidebarVisible && (
+            <div className="w-64 border-r border-border">
+              <FileExplorer
+                files={files}
+                onFileSelect={handleFileSelect}
+                onFileCreate={handleFileCreate}
+                onFileDelete={handleFileDelete}
+                onFileRename={handleFileRename}
+                selectedFileId={activeTab}
+                onImportFolder={handleImportFolder}
+              />
+            </div>
+          )}
+          
+          {/* Main Content Area */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* File Tabs */}
+            <div className="flex items-center bg-editor-sidebar border-b border-border px-2 py-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSidebarVisible(!sidebarVisible)}
+                className="mr-2 h-7 w-7 p-0"
+              >
+                {sidebarVisible ? <SidebarClose className="w-3 h-3" /> : <SidebarOpen className="w-3 h-3" />}
+              </Button>
+              
+              <div className="flex flex-1 overflow-x-auto">
+                {openTabs.map(tab => (
+                  <div
+                    key={tab.id}
+                    className={`
                     flex items-center gap-2 px-3 py-1.5 border-r border-border cursor-pointer
                     transition-editor min-w-0 max-w-48
                     ${activeTab === tab.id ? 'bg-editor-active-tab text-editor-text' : 'text-editor-text-muted hover:text-editor-text'}
                   `}
-                  onClick={() => setActiveTab(tab.id)}
-                >
-                  <FileText className="w-3 h-3 flex-shrink-0" />
-                  <span className="text-xs truncate">{tab.name}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleTabClose(tab.id);
-                    }}
-                    className="h-4 w-4 p-0 opacity-60 hover:opacity-100"
+                    onClick={() => setActiveTab(tab.id)}
                   >
-                    <X className="w-2 h-2" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          {/* Editor Content */}
-          <div className="flex-1 flex overflow-hidden">
-            {/* Code Editor */}
-            <div className="flex-1 border-r border-border">
-              {activeFile ? (
-                <CodeEditor
-                  value={activeFile.content || ''}
-                  onChange={(content) => updateFileContent(activeFile.id, content)}
-                  language={activeFile.language || 'plaintext'}
-                  fileName={activeFile.name}
-                />
-              ) : (
-                <div className="h-full flex items-center justify-center text-editor-text-muted">
-                  <div className="text-center">
-                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                    <p>Select a file to start editing</p>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Right Panel - Preview or other tools */}
-            {bottomPanelVisible && (
-              <div className="w-1/2 flex flex-col">
-                <Tabs value={activeBottomTab} onValueChange={setActiveBottomTab} className="h-full flex flex-col">
-                  <div className="flex items-center justify-between border-b border-border px-4 py-2">
-                    <TabsList className="grid w-auto grid-cols-3 bg-editor-panel">
-                      <TabsTrigger value="preview" className="text-xs">Preview</TabsTrigger>
-                      <TabsTrigger value="terminal" className="text-xs">Terminal</TabsTrigger>
-                      <TabsTrigger value="ai" className="text-xs">AI Assistant</TabsTrigger>
-                    </TabsList>
-                    
+                    <FileText className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-xs truncate">{tab.name}</span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setBottomPanelVisible(false)}
-                      className="h-6 w-6 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleTabClose(tab.id);
+                      }}
+                      className="h-4 w-4 p-0 opacity-60 hover:opacity-100"
                     >
-                      <PanelBottomClose className="w-3 h-3" />
+                      <X className="w-2 h-2" />
                     </Button>
                   </div>
-                  
-                  <TabsContent value="preview" className="flex-1 m-0">
-                    <LivePreview
-                      htmlContent={previewContent.html}
-                      cssContent={previewContent.css}
-                      jsContent={previewContent.js}
-                    />
-                  </TabsContent>
-                  
-                  <TabsContent value="terminal" className="flex-1 m-0">
-                    <Terminal />
-                  </TabsContent>
-                  
-                  <TabsContent value="ai" className="flex-1 m-0">
-                    <div className="h-full flex items-center justify-center text-editor-text-muted">
-                      <div className="text-center">
-                        <i className="fas fa-robot text-4xl mb-4 opacity-50" />
-                        <p>AI Assistant Coming Soon!</p>
-                        <p className="text-xs mt-2">Connect your Gemini API key to enable AI features</p>
-                      </div>
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                ))}
               </div>
-            )}
+            </div>
+            
+            {/* Editor and Right Panel */}
+            <div className="flex-1 flex overflow-hidden">
+              {/* Code Editor */}
+              <div className="flex-1 border-r border-border">
+                {activeFile ? (
+                  <CodeEditor
+                    value={activeFile.content || ''}
+                    onChange={(content) => updateFileContent(activeFile.id, content)}
+                    language={activeFile.language || 'plaintext'}
+                    fileName={activeFile.name}
+                    onRun={(code, lang) => {
+                      multiTerminalRef.current?.runCode(lang, code);
+                    }}
+                  />
+                ) : (
+                  <div className="h-full flex items-center justify-center text-editor-text-muted">
+                    <div className="text-center">
+                      <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <p>Select a file to start editing</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Right Panel - Preview or AI */}
+              {bottomPanelVisible && (
+                <div className="w-1/2 flex flex-col">
+                  <Tabs value={activeBottomTab} onValueChange={setActiveBottomTab} className="h-full flex flex-col">
+                    <div className="flex items-center justify-between border-b border-border px-4 py-2">
+                      <TabsList className="grid w-auto grid-cols-2 bg-editor-panel">
+                        <TabsTrigger value="preview" className="text-xs">Preview</TabsTrigger>
+                        <TabsTrigger value="ai" className="text-xs">AI</TabsTrigger>
+                      </TabsList>
+                      
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setBottomPanelVisible(false)}
+                        className="h-6 w-6 p-0"
+                      >
+                        <PanelBottomClose className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    
+                    <TabsContent value="preview" className="flex-1 m-0">
+                      <LivePreview
+                        htmlContent={previewContent.html}
+                        cssContent={previewContent.css}
+                        jsContent={previewContent.js}
+                      />
+                    </TabsContent>
+                    
+                    <TabsContent value="ai" className="flex-1 m-0">
+                      <ChatPanel getActiveContext={() => ({ fileName: activeFile?.name, code: activeFile?.content })} />
+                    </TabsContent>
+                  </TabsList>
+                </div>
+              )}
+            </div>
           </div>
+        </div>
+        {/* Bottom Terminal */}
+        <div className="h-60 border-t border-border">
+          <MultiTerminal ref={multiTerminalRef} getFileSystem={() => files} />
         </div>
       </div>
       
