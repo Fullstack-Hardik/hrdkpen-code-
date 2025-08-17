@@ -2,95 +2,164 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Smart Code Editor Design System - VS Code Inspired Dark Theme */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Editor Core Colors */
+    --editor-bg: 218 23% 9%;           /* Deep blue-gray background */
+    --editor-sidebar: 218 23% 12%;     /* Slightly lighter sidebar */
+    --editor-panel: 218 23% 8%;        /* Bottom panel */
+    --editor-header: 218 23% 11%;      /* Top header */
+    --editor-active-tab: 218 23% 16%;  /* Active file tab */
+    --editor-inactive-tab: 218 23% 10%; /* Inactive tabs */
+    
+    /* Text Colors */
+    --editor-text: 220 14% 85%;        /* Primary text */
+    --editor-text-muted: 220 14% 65%;  /* Muted text */
+    --editor-text-dim: 220 14% 45%;    /* Very dim text */
+    
+    /* Accent Colors */
+    --editor-accent: 207 100% 68%;     /* Blue accent */
+    --editor-success: 142 71% 45%;     /* Green success */
+    --editor-warning: 35 84% 62%;      /* Orange warning */
+    --editor-error: 0 74% 61%;         /* Red error */
+    --editor-purple: 271 81% 56%;      /* Purple accent */
+    
+    /* Borders & Dividers */
+    --editor-border: 218 23% 18%;      /* Subtle borders */
+    --editor-border-focus: 207 100% 68%; /* Focused borders */
+    
+    /* Syntax Highlighting Colors */
+    --syntax-keyword: 197 71% 73%;     /* Blue for keywords */
+    --syntax-string: 107 56% 73%;      /* Green for strings */
+    --syntax-number: 25 85% 73%;       /* Orange for numbers */
+    --syntax-comment: 220 14% 45%;     /* Gray for comments */
+    --syntax-function: 221 87% 60%;    /* Purple for functions */
+    --syntax-variable: 207 82% 66%;    /* Light blue for variables */
+    
+    /* System Design Tokens */
+    --background: var(--editor-bg);
+    --foreground: var(--editor-text);
+    --card: var(--editor-sidebar);
+    --card-foreground: var(--editor-text);
+    --popover: var(--editor-panel);
+    --popover-foreground: var(--editor-text);
+    --primary: var(--editor-accent);
+    --primary-foreground: 0 0% 100%;
+    --secondary: var(--editor-border);
+    --secondary-foreground: var(--editor-text);
+    --muted: var(--editor-inactive-tab);
+    --muted-foreground: var(--editor-text-muted);
+    --accent: var(--editor-active-tab);
+    --accent-foreground: var(--editor-text);
+    --destructive: var(--editor-error);
+    --destructive-foreground: 0 0% 100%;
+    --border: var(--editor-border);
+    --input: var(--editor-panel);
+    --ring: var(--editor-accent);
+    --radius: 0.375rem;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Custom Editor Gradients */
+    --gradient-header: linear-gradient(135deg, hsl(var(--editor-header)), hsl(var(--editor-bg)));
+    --gradient-sidebar: linear-gradient(180deg, hsl(var(--editor-sidebar)), hsl(var(--editor-bg)));
+    --gradient-glow: 0 0 30px hsl(var(--editor-accent) / 0.3);
+    
+    /* Animations */
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: all 0.1s ease-out;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Dark mode uses the same editor theme */
+    --background: var(--editor-bg);
+    --foreground: var(--editor-text);
+  }
+}
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+@layer base {
+  * {
+    @apply border-border;
+  }
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Fira Code', 'JetBrains Mono', 'Monaco', 'Cascadia Code', monospace;
+    overflow: hidden; /* Prevent scrollbars in the IDE */
+  }
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+  /* Custom scrollbars for editor theme */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--editor-panel));
+  }
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--editor-border));
+    border-radius: 4px;
+  }
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--editor-text-dim));
+  }
+}
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+@layer utilities {
+  /* Editor-specific utilities */
+  .editor-bg {
+    background: hsl(var(--editor-bg));
+  }
+  
+  .editor-sidebar {
+    background: hsl(var(--editor-sidebar));
+  }
+  
+  .editor-panel {
+    background: hsl(var(--editor-panel));
+  }
+  
+  .editor-header {
+    background: var(--gradient-header);
+  }
+  
+  .syntax-keyword {
+    color: hsl(var(--syntax-keyword));
+  }
+  
+  .syntax-string {
+    color: hsl(var(--syntax-string));
+  }
+  
+  .syntax-number {
+    color: hsl(var(--syntax-number));
+  }
+  
+  .syntax-comment {
+    color: hsl(var(--syntax-comment));
+  }
+  
+  .syntax-function {
+    color: hsl(var(--syntax-function));
+  }
+  
+  .syntax-variable {
+    color: hsl(var(--syntax-variable));
+  }
+  
+  .glow-accent {
+    box-shadow: var(--gradient-glow);
+  }
+  
+  .transition-editor {
+    transition: var(--transition-smooth);
+  }
+  
+  .transition-fast {
+    transition: var(--transition-fast);
   }
 }
 

@@ -61,7 +61,24 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				// Editor-specific colors
+				'editor-bg': 'hsl(var(--editor-bg))',
+				'editor-sidebar': 'hsl(var(--editor-sidebar))',
+				'editor-panel': 'hsl(var(--editor-panel))',
+				'editor-header': 'hsl(var(--editor-header))',
+				'editor-active-tab': 'hsl(var(--editor-active-tab))',
+				'editor-inactive-tab': 'hsl(var(--editor-inactive-tab))',
+				'editor-text': 'hsl(var(--editor-text))',
+				'editor-text-muted': 'hsl(var(--editor-text-muted))',
+				'editor-text-dim': 'hsl(var(--editor-text-dim))',
+				'editor-accent': 'hsl(var(--editor-accent))',
+				'editor-success': 'hsl(var(--editor-success))',
+				'editor-warning': 'hsl(var(--editor-warning))',
+				'editor-error': 'hsl(var(--editor-error))',
+				'editor-purple': 'hsl(var(--editor-purple))',
+				'editor-border': 'hsl(var(--editor-border))',
+				'editor-border-focus': 'hsl(var(--editor-border-focus))'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
