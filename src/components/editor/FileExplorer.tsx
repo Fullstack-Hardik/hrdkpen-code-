@@ -208,7 +208,7 @@ export const FileExplorer = ({
               <input
                 ref={folderInputRef}
                 type="file"
-                webkitdirectory="true"
+                {...({ webkitdirectory: "true" } as any)}
                 multiple
                 className="hidden"
                 onChange={async (e) => {

@@ -71,7 +71,7 @@ export const MultiTerminal = forwardRef<MultiTerminalHandle, MultiTerminalProps>
           {sessions.map((s) => (
             <TabsContent key={s.id} value={s.id} className="flex-1 m-0">
               <Terminal
-                ref={(r) => (termRefs.current[s.id] = r)}
+                ref={(r) => { if (r) termRefs.current[s.id] = r; }}
                 getFileSystem={getFileSystem}
                 name={s.name}
               />

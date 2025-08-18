@@ -674,7 +674,7 @@ export const SmartCodeEditor = () => {
                     <TabsContent value="ai" className="flex-1 m-0">
                       <ChatPanel getActiveContext={() => ({ fileName: activeFile?.name, code: activeFile?.content })} />
                     </TabsContent>
-                  </TabsList>
+                  </Tabs>
                 </div>
               )}
             </div>
