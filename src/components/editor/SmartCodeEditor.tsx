@@ -631,10 +631,13 @@ export const SmartCodeEditor = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!terminalVisible) setTerminalVisible(true);
+                          setTimeout(() => {
                             multiTerminalRef.current?.runCode(tab.language, tab.content || '');
-                          }}
+                          }, 100);
+                        }}
                           className="h-4 w-4 p-0 opacity-0 group-hover:opacity-60 hover:opacity-100 text-editor-success"
                           title="Run code"
                         >
@@ -665,9 +668,12 @@ export const SmartCodeEditor = () => {
                     onChange={(content) => updateFileContent(activeFile.id, content)}
                     language={activeFile.language || 'plaintext'}
                     fileName={activeFile.name}
-                    onRun={(code, lang) => {
+                  onRun={(code, lang) => {
+                    if (!terminalVisible) setTerminalVisible(true);
+                    setTimeout(() => {
                       multiTerminalRef.current?.runCode(lang, code);
-                    }}
+                    }, 100);
+                  }}
                   />
                 ) : (
                   <div className="h-full flex items-center justify-center text-editor-text-muted">
@@ -751,29 +757,23 @@ export const SmartCodeEditor = () => {
         
         {/* Bottom Terminal */}
         {terminalVisible && (
-          <ResizablePanelGroup direction="vertical">
-            <ResizablePanel defaultSize={70} minSize={30}>
-              <div /> {/* Spacer for the above content */}
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={30} minSize={15} maxSize={60}>
-              <div className="h-full border-t border-border">
-                <div className="flex items-center justify-between bg-editor-sidebar border-b border-border px-3 py-2">
-                  <div className="text-sm font-medium text-editor-text">Terminal</div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setTerminalVisible(false)}
-                    className="h-6 w-6 p-0"
-                    title="Close terminal"
-                  >
-                    <ChevronDown className="w-3 h-3" />
-                  </Button>
-                </div>
-                <MultiTerminal ref={multiTerminalRef} getFileSystem={() => files} />
-              </div>
-            </ResizablePanel>
-          </ResizablePanelGroup>
+          <div className="h-[300px] border-t border-border bg-editor-bg flex flex-col">
+            <div className="flex items-center justify-between bg-editor-sidebar border-b border-border px-3 py-2 h-10">
+              <div className="text-sm font-medium text-editor-text">Terminal</div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTerminalVisible(false)}
+                className="h-6 w-6 p-0"
+                title="Close terminal"
+              >
+                <ChevronDown className="w-3 h-3" />
+              </Button>
+            </div>
+            <div className="flex-1">
+              <MultiTerminal ref={multiTerminalRef} getFileSystem={() => files} />
+            </div>
+          </div>
         )}
       </div>
       

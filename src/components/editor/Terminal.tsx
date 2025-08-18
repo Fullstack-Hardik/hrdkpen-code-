@@ -239,100 +239,120 @@ Examples:
     }
   };
 
+  useImperativeHandle(ref, () => ({
+    runJS: (code: string) => {
+      addOutput('input', `$ Running JavaScript code...`);
+      runJavaScript(code);
+    },
+    runTS: (code: string) => {
+      addOutput('input', `$ Running TypeScript code...`);
+      runJavaScript(code);
+    },
+    execute: executeCommand
+  }));
+
   return (
-    <div className="flex flex-col h-full editor-panel">
-      {/* Terminal Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-        <div className="flex items-center gap-2">
-          <TerminalIcon className="w-4 h-4 text-editor-accent" />
-          <span className="text-sm font-medium text-editor-text">Terminal</span>
-          <Badge variant="secondary" className="text-xs">
-            {output.length} lines
-          </Badge>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={copyTerminalContent}
-            className="h-7 px-2"
-          >
-            <Copy className="w-3 h-3" />
-          </Button>
+    <div className="flex flex-col h-full bg-editor-bg">
+      {/* Terminal Header - Only show if showHeader is true */}
+      {showHeader && (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-editor-sidebar">
+          <div className="flex items-center gap-2">
+            <TerminalIcon className="w-4 h-4 text-editor-accent" />
+            <span className="text-sm font-medium text-editor-text">{name}</span>
+            <Badge variant="secondary" className="text-xs">
+              {output.length} lines
+            </Badge>
+          </div>
           
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={downloadTerminalLog}
-            className="h-7 px-2"
-          >
-            <Download className="w-3 h-3" />
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={clearTerminal}
-            className="h-7 px-2"
-          >
-            <Trash2 className="w-3 h-3" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={copyTerminalContent}
+              className="h-6 px-2"
+            >
+              <Copy className="w-3 h-3" />
+            </Button>
+            
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={downloadTerminalLog}
+              className="h-6 px-2"
+            >
+              <Download className="w-3 h-3" />
+            </Button>
+            
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={clearTerminal}
+              className="h-6 px-2"
+            >
+              <Trash2 className="w-3 h-3" />
+            </Button>
+            
+            {onExit && (
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={onExit}
+                className="h-6 px-2"
+              >
+                <XCircle className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Terminal Output */}
       <div 
         ref={terminalRef}
-        className="flex-1 overflow-auto p-4 font-mono text-sm bg-editor-bg"
+        className="flex-1 overflow-auto p-3 bg-editor-bg font-mono text-sm"
       >
         {output.map((item) => (
-          <div key={item.id} className="flex items-start gap-2 mb-1">
-            {getOutputIcon(item.type)}
-            <span 
-              className={`flex-1 whitespace-pre-wrap ${
-                item.type === 'error' ? 'text-editor-error' :
-                item.type === 'success' ? 'text-editor-success' :
-                item.type === 'input' ? 'text-editor-accent' :
-                'text-editor-text'
-              }`}
-            >
+          <div key={item.id} className="mb-1">
+            <div className={`whitespace-pre-wrap ${
+              item.type === 'input' ? 'text-editor-accent font-medium' :
+              item.type === 'output' ? 'text-editor-text' :
+              item.type === 'error' ? 'text-red-400' :
+              item.type === 'success' ? 'text-green-400' :
+              'text-editor-text-muted'
+            }`}>
               {item.content}
-            </span>
-            <span className="text-xs text-editor-text-dim">
-              {item.timestamp.toLocaleTimeString()}
-            </span>
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Command Input */}
-      <div className="flex items-center gap-2 p-4 border-t border-border">
-        <span className="text-editor-accent font-mono">{cwd} $</span>
-        <Input
-          value={command}
-          onChange={(e) => setCommand(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              executeCommand();
-            }
-          }}
-          placeholder="Enter command... (try 'help' for available commands)"
-          className="flex-1 font-mono bg-editor-panel border-editor-border focus:border-editor-accent"
-          disabled={isExecuting}
-        />
-        <Button 
-          onClick={executeCommand}
-          disabled={isExecuting || !command.trim()}
-          size="sm"
-          className="h-8"
-        >
-          {isExecuting ? (
-            <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          ) : (
+      {/* Terminal Input */}
+      <div className="border-t border-border bg-editor-sidebar p-2">
+        <div className="flex items-center gap-2">
+          <span className="text-editor-text-muted text-xs font-mono">
+            {cwd} $
+          </span>
+          <Input
+            value={command}
+            onChange={(e) => setCommand(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !isExecuting) {
+                executeCommand();
+              }
+            }}
+            placeholder="Enter command..."
+            className="flex-1 bg-editor-panel border-editor-border font-mono text-sm h-8"
+            disabled={isExecuting}
+          />
+          <Button
+            onClick={executeCommand}
+            disabled={isExecuting || !command.trim()}
+            className="bg-editor-accent hover:bg-editor-accent-hover text-white h-8 px-3"
+            size="sm"
+          >
             <Play className="w-3 h-3" />
-          )}
-        </Button>
+          </Button>
+        </div>
       </div>
     </div>
   );
