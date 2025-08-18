@@ -14,9 +14,17 @@ import {
   SidebarOpen, 
   SidebarClose,
   FileText,
-  X
+  X,
+  Monitor,
+  Smartphone,
+  Tablet,
+  Laptop,
+  ChevronUp,
+  ChevronDown,
+  Sparkles
 } from 'lucide-react';
 import { ChatPanel } from './ChatPanel';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 
 // Default file structure
 const defaultFiles: FileNode[] = [
@@ -320,7 +328,10 @@ export const SmartCodeEditor = () => {
   const [activeTab, setActiveTab] = useState<string>('');
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [bottomPanelVisible, setBottomPanelVisible] = useState(true);
+  const [rightPanelVisible, setRightPanelVisible] = useState(true);
+  const [terminalVisible, setTerminalVisible] = useState(true);
   const [activeBottomTab, setActiveBottomTab] = useState('preview');
+  const [previewDevice, setPreviewDevice] = useState<'mobile' | 'tablet' | 'desktop' | 'laptop'>('desktop');
   const multiTerminalRef = useRef<MultiTerminalHandle>(null);
 
   // Auto-save functionality
@@ -554,6 +565,13 @@ export const SmartCodeEditor = () => {
     });
   };
 
+  const deviceConfigs = {
+    mobile: { width: 375, height: 667, icon: Smartphone },
+    tablet: { width: 768, height: 1024, icon: Tablet },
+    desktop: { width: 1440, height: 900, icon: Monitor },
+    laptop: { width: 1280, height: 720, icon: Laptop }
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-editor-bg">
       {/* Header */}
@@ -561,68 +579,86 @@ export const SmartCodeEditor = () => {
       
       {/* Main Editor Layout */}
       <div className="flex flex-col flex-1 overflow-hidden">
-        <div className="flex flex-1 overflow-hidden">
+        <ResizablePanelGroup direction="horizontal" className="flex-1">
           {/* Sidebar */}
           {sidebarVisible && (
-            <div className="w-64 border-r border-border">
-              <FileExplorer
-                files={files}
-                onFileSelect={handleFileSelect}
-                onFileCreate={handleFileCreate}
-                onFileDelete={handleFileDelete}
-                onFileRename={handleFileRename}
-                selectedFileId={activeTab}
-                onImportFolder={handleImportFolder}
-              />
-            </div>
+            <>
+              <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
+                <div className="h-full border-r border-border">
+                  <FileExplorer
+                    files={files}
+                    onFileSelect={handleFileSelect}
+                    onFileCreate={handleFileCreate}
+                    onFileDelete={handleFileDelete}
+                    onFileRename={handleFileRename}
+                    selectedFileId={activeTab}
+                    onImportFolder={handleImportFolder}
+                  />
+                </div>
+              </ResizablePanel>
+              <ResizableHandle withHandle />
+            </>
           )}
           
           {/* Main Content Area */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* File Tabs */}
-            <div className="flex items-center bg-editor-sidebar border-b border-border px-2 py-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarVisible(!sidebarVisible)}
-                className="mr-2 h-7 w-7 p-0"
-              >
-                {sidebarVisible ? <SidebarClose className="w-3 h-3" /> : <SidebarOpen className="w-3 h-3" />}
-              </Button>
-              
-              <div className="flex flex-1 overflow-x-auto">
-                {openTabs.map(tab => (
-                  <div
-                    key={tab.id}
-                    className={`
-                    flex items-center gap-2 px-3 py-1.5 border-r border-border cursor-pointer
-                    transition-editor min-w-0 max-w-48
-                    ${activeTab === tab.id ? 'bg-editor-active-tab text-editor-text' : 'text-editor-text-muted hover:text-editor-text'}
-                  `}
-                    onClick={() => setActiveTab(tab.id)}
-                  >
-                    <FileText className="w-3 h-3 flex-shrink-0" />
-                    <span className="text-xs truncate">{tab.name}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleTabClose(tab.id);
-                      }}
-                      className="h-4 w-4 p-0 opacity-60 hover:opacity-100"
+          <ResizablePanel defaultSize={sidebarVisible ? 50 : 70}>
+            <div className="flex flex-col h-full">
+              {/* File Tabs */}
+              <div className="flex items-center bg-editor-sidebar border-b border-border px-2 py-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSidebarVisible(!sidebarVisible)}
+                  className="mr-2 h-7 w-7 p-0"
+                >
+                  {sidebarVisible ? <SidebarClose className="w-3 h-3" /> : <SidebarOpen className="w-3 h-3" />}
+                </Button>
+                
+                <div className="flex flex-1 overflow-x-auto">
+                  {openTabs.map(tab => (
+                    <div
+                      key={tab.id}
+                      className={`
+                        flex items-center gap-2 px-3 py-1.5 border-r border-border cursor-pointer
+                        transition-editor min-w-0 max-w-48 group
+                        ${activeTab === tab.id ? 'bg-editor-active-tab text-editor-text' : 'text-editor-text-muted hover:text-editor-text hover:bg-editor-border'}
+                      `}
+                      onClick={() => setActiveTab(tab.id)}
                     >
-                      <X className="w-2 h-2" />
-                    </Button>
-                  </div>
-                ))}
+                      <FileText className="w-3 h-3 flex-shrink-0" />
+                      <span className="text-xs truncate">{tab.name}</span>
+                      {(tab.language === 'javascript' || tab.language === 'typescript') && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            multiTerminalRef.current?.runCode(tab.language, tab.content || '');
+                          }}
+                          className="h-4 w-4 p-0 opacity-0 group-hover:opacity-60 hover:opacity-100 text-editor-success"
+                          title="Run code"
+                        >
+                          ▶
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTabClose(tab.id);
+                        }}
+                        className="h-4 w-4 p-0 opacity-60 hover:opacity-100"
+                      >
+                        <X className="w-2 h-2" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-            
-            {/* Editor and Right Panel */}
-            <div className="flex-1 flex overflow-hidden">
+              
               {/* Code Editor */}
-              <div className="flex-1 border-r border-border">
+              <div className="flex-1">
                 {activeFile ? (
                   <CodeEditor
                     value={activeFile.content || ''}
@@ -642,24 +678,55 @@ export const SmartCodeEditor = () => {
                   </div>
                 )}
               </div>
-              
-              {/* Right Panel - Preview or AI */}
-              {bottomPanelVisible && (
-                <div className="w-1/2 flex flex-col">
+            </div>
+          </ResizablePanel>
+          
+          {/* Right Panel - Preview or AI */}
+          {rightPanelVisible && (
+            <>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+                <div className="flex flex-col h-full">
                   <Tabs value={activeBottomTab} onValueChange={setActiveBottomTab} className="h-full flex flex-col">
-                    <div className="flex items-center justify-between border-b border-border px-4 py-2">
-                      <TabsList className="grid w-auto grid-cols-2 bg-editor-panel">
-                        <TabsTrigger value="preview" className="text-xs">Preview</TabsTrigger>
-                        <TabsTrigger value="ai" className="text-xs">AI</TabsTrigger>
-                      </TabsList>
+                    <div className="flex items-center justify-between border-b border-border px-3 py-2 bg-editor-sidebar">
+                      <div className="flex items-center gap-2">
+                        <TabsList className="grid w-auto grid-cols-2 bg-editor-panel">
+                          <TabsTrigger value="preview" className="text-xs px-3">
+                            <Monitor className="w-3 h-3 mr-1" />
+                            Preview
+                          </TabsTrigger>
+                          <TabsTrigger value="ai" className="text-xs px-3">
+                            <Sparkles className="w-3 h-3 mr-1" />
+                            AI
+                          </TabsTrigger>
+                        </TabsList>
+                        
+                        {activeBottomTab === 'preview' && (
+                          <div className="flex gap-1 ml-2">
+                            {Object.entries(deviceConfigs).map(([device, config]) => (
+                              <Button
+                                key={device}
+                                variant={previewDevice === device ? "default" : "ghost"}
+                                size="sm"
+                                onClick={() => setPreviewDevice(device as typeof previewDevice)}
+                                className="h-6 w-6 p-0"
+                                title={device.charAt(0).toUpperCase() + device.slice(1)}
+                              >
+                                <config.icon className="w-3 h-3" />
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => setBottomPanelVisible(false)}
+                        onClick={() => setRightPanelVisible(false)}
                         className="h-6 w-6 p-0"
+                        title="Close panel"
                       >
-                        <PanelBottomClose className="w-3 h-3" />
+                        <X className="w-3 h-3" />
                       </Button>
                     </div>
                     
@@ -668,6 +735,7 @@ export const SmartCodeEditor = () => {
                         htmlContent={previewContent.html}
                         cssContent={previewContent.css}
                         jsContent={previewContent.js}
+                        device={previewDevice}
                       />
                     </TabsContent>
                     
@@ -676,27 +744,60 @@ export const SmartCodeEditor = () => {
                     </TabsContent>
                   </Tabs>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
+        
         {/* Bottom Terminal */}
-        <div className="h-60 border-t border-border">
-          <MultiTerminal ref={multiTerminalRef} getFileSystem={() => files} />
-        </div>
+        {terminalVisible && (
+          <ResizablePanelGroup direction="vertical">
+            <ResizablePanel defaultSize={70} minSize={30}>
+              <div /> {/* Spacer for the above content */}
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={30} minSize={15} maxSize={60}>
+              <div className="h-full border-t border-border">
+                <div className="flex items-center justify-between bg-editor-sidebar border-b border-border px-3 py-2">
+                  <div className="text-sm font-medium text-editor-text">Terminal</div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setTerminalVisible(false)}
+                    className="h-6 w-6 p-0"
+                    title="Close terminal"
+                  >
+                    <ChevronDown className="w-3 h-3" />
+                  </Button>
+                </div>
+                <MultiTerminal ref={multiTerminalRef} getFileSystem={() => files} />
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        )}
       </div>
       
-      {/* Bottom Toggle Button */}
-      {!bottomPanelVisible && (
-        <div className="absolute bottom-4 right-4">
+      {/* Toggle Buttons */}
+      <div className="absolute bottom-4 right-4 flex flex-col gap-2">
+        {!rightPanelVisible && (
           <Button
-            onClick={() => setBottomPanelVisible(true)}
-            className="rounded-full h-10 w-10 p-0 glow-accent"
+            onClick={() => setRightPanelVisible(true)}
+            className="rounded-full h-9 w-9 p-0 glow-accent"
+            title="Show preview/AI panel"
           >
-            <PanelBottomOpen className="w-4 h-4" />
+            <Monitor className="w-4 h-4" />
           </Button>
-        </div>
-      )}
+        )}
+        {!terminalVisible && (
+          <Button
+            onClick={() => setTerminalVisible(true)}
+            className="rounded-full h-9 w-9 p-0 glow-accent"
+            title="Show terminal"
+          >
+            <ChevronUp className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
     </div>
   );
 };
