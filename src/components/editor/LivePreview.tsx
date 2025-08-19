@@ -17,7 +17,6 @@ interface LivePreviewProps {
   htmlContent: string;
   cssContent: string;
   jsContent: string;
-  device?: 'mobile' | 'tablet' | 'desktop' | 'laptop';
 }
 
 type ViewportSize = 'desktop' | 'laptop' | 'tablet' | 'mobile';
@@ -29,8 +28,8 @@ const viewportSizes = {
   mobile: { width: '375px', height: '667px', icon: Smartphone, label: 'Mobile' }
 };
 
-export const LivePreview = ({ htmlContent, cssContent, jsContent, device = 'desktop' }: LivePreviewProps) => {
-  const [currentViewport, setCurrentViewport] = useState<ViewportSize>(device as ViewportSize);
+export const LivePreview = ({ htmlContent, cssContent, jsContent }: LivePreviewProps) => {
+  const [currentViewport, setCurrentViewport] = useState<ViewportSize>('desktop');
   const [isVisible, setIsVisible] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 

@@ -335,9 +335,8 @@ export const SmartCodeEditor = () => {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   const [bottomPanelVisible, setBottomPanelVisible] = useState(true);
   const [rightPanelVisible, setRightPanelVisible] = useState(true);
-  const [terminalVisible, setTerminalVisible] = useState(true);
-  const [activeBottomTab, setActiveBottomTab] = useState('preview');
-  const [previewDevice, setPreviewDevice] = useState<'mobile' | 'tablet' | 'desktop' | 'laptop'>('desktop');
+  const [terminalVisible, setTerminalVisible] = useState(false);
+  const [activeRightTab, setActiveRightTab] = useState('preview');
   const [showYouTube, setShowYouTube] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const multiTerminalRef = useRef<MultiTerminalHandle>(null);
@@ -573,11 +572,38 @@ export const SmartCodeEditor = () => {
     });
   };
 
-  const deviceConfigs = {
-    mobile: { width: 375, height: 667, icon: Smartphone },
-    tablet: { width: 768, height: 1024, icon: Tablet },
-    desktop: { width: 1440, height: 900, icon: Monitor },
-    laptop: { width: 1280, height: 720, icon: Laptop }
+  const exportProject = async () => {
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+      
+      const addFilesToZip = (fileList: FileNode[], path = '') => {
+        fileList.forEach(file => {
+          const fullPath = path ? `${path}/${file.name}` : file.name;
+          if (file.type === 'file') {
+            zip.file(fullPath, file.content || '');
+          } else if (file.type === 'folder' && file.children) {
+            addFilesToZip(file.children, fullPath);
+          }
+        });
+      };
+      
+      addFilesToZip(files);
+      
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'hrdkpen-project.zip';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Export failed:', error);
+    }
+  };
+
+  const publishProject = () => {
+    window.open('https://netlify.com', '_blank');
   };
 
   return (
@@ -700,64 +726,60 @@ export const SmartCodeEditor = () => {
             <>
               <ResizableHandle withHandle />
               <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
-                <div className="flex flex-col h-full">
-                  <Tabs value={activeBottomTab} onValueChange={setActiveBottomTab} className="h-full flex flex-col">
-                    <div className="flex items-center justify-between border-b border-border px-3 py-2 bg-editor-sidebar">
-                      <div className="flex items-center gap-2">
-                        <TabsList className="grid w-auto grid-cols-2 bg-editor-panel">
-                          <TabsTrigger value="preview" className="text-xs px-3">
-                            <Monitor className="w-3 h-3 mr-1" />
-                            Preview
-                          </TabsTrigger>
-                          <TabsTrigger value="ai" className="text-xs px-3">
-                            <Sparkles className="w-3 h-3 mr-1" />
-                            AI
-                          </TabsTrigger>
-                        </TabsList>
-                        
-                        {activeBottomTab === 'preview' && (
-                          <div className="flex gap-1 ml-2">
-                            {Object.entries(deviceConfigs).map(([device, config]) => (
-                              <Button
-                                key={device}
-                                variant={previewDevice === device ? "default" : "ghost"}
-                                size="sm"
-                                onClick={() => setPreviewDevice(device as typeof previewDevice)}
-                                className="h-6 w-6 p-0"
-                                title={device.charAt(0).toUpperCase() + device.slice(1)}
-                              >
-                                <config.icon className="w-3 h-3" />
-                              </Button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setRightPanelVisible(false)}
-                        className="h-6 w-6 p-0"
-                        title="Close panel"
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
+                <Tabs 
+                  value={activeRightTab} 
+                  onValueChange={setActiveRightTab} 
+                  className="h-full flex flex-col"
+                >
+                  <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-editor-sidebar">
+                    <TabsList className="bg-editor-panel h-8">
+                      <TabsTrigger value="preview" className="text-xs h-6 px-3">
+                        <Monitor className="w-3 h-3 mr-1" />
+                        Preview
+                      </TabsTrigger>
+                      <TabsTrigger value="ai" className="text-xs h-6 px-3">
+                        <Sparkles className="w-3 h-3 mr-1" />
+                        AI Assistant
+                      </TabsTrigger>
+                    </TabsList>
                     
-                    <TabsContent value="preview" className="flex-1 m-0">
-                      <LivePreview
-                        htmlContent={previewContent.html}
-                        cssContent={previewContent.css}
-                        jsContent={previewContent.js}
-                        device={previewDevice}
-                      />
-                    </TabsContent>
-                    
-                    <TabsContent value="ai" className="flex-1 m-0">
-                      <ChatPanel getActiveContext={() => ({ fileName: activeFile?.name, code: activeFile?.content })} />
-                    </TabsContent>
-                  </Tabs>
-                </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRightPanelVisible(false)}
+                      className="h-6 px-2"
+                      title="Close Panel"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+
+                  <TabsContent value="preview" className="flex-1 m-0">
+                    <LivePreview 
+                      htmlContent={previewContent.html} 
+                      cssContent={previewContent.css} 
+                      jsContent={previewContent.js}
+                    />
+                  </TabsContent>
+                  
+                  <TabsContent value="ai" className="flex-1 m-0">
+                    <ChatPanel 
+                      getActiveContext={() => {
+                        const activeFile = openTabs.find(tab => tab.id === activeTab);
+                        return {
+                          fileName: activeFile?.name,
+                          code: activeFile?.content
+                        };
+                      }}
+                      onYouTubePlay={(url) => {
+                        setYoutubeUrl(url);
+                        setShowYouTube(true);
+                        setRightPanelVisible(false);
+                        setSidebarVisible(false);
+                      }}
+                    />
+                  </TabsContent>
+                </Tabs>
               </ResizablePanel>
             </>
           )}

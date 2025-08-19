@@ -279,7 +279,7 @@ export const ChatPanel = ({ getActiveContext, onYouTubePlay }: ChatPanelProps) =
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-3">
+      <div className="flex-1 overflow-y-auto p-3" style={{ maxHeight: 'calc(100vh - 200px)' }}>
         {messages.length === 0 && (
           <div className="text-center text-editor-text-muted py-8">
             <div className="mb-4">
@@ -366,7 +366,7 @@ export const ChatPanel = ({ getActiveContext, onYouTubePlay }: ChatPanelProps) =
           )}
         </div>
         <div ref={messagesEndRef} />
-      </ScrollArea>
+      </div>
 
       {/* YouTube Input */}
       {showYoutubeInput && (

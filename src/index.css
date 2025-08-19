@@ -164,11 +164,38 @@
 }
 
 @layer base {
-  * {
-    @apply border-border;
+  /* Prevent text selection on UI elements */
+  .no-select,
+  .no-select * {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
   }
-
-  body {
-    @apply bg-background text-foreground;
+  
+  /* Allow text selection in specific areas */
+  .allow-select,
+  .allow-select * {
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
   }
+  
+  /* Apply no-select to entire app but allow in editor areas */
+  #root {
+    @apply no-select;
+  }
+  
+  /* Editor specific utilities */
+  .bg-editor-bg { background-color: hsl(var(--editor-bg)); }
+  .bg-editor-sidebar { background-color: hsl(var(--editor-sidebar)); }
+  .bg-editor-panel { background-color: hsl(var(--editor-panel)); }
+  .bg-editor-active-tab { background-color: hsl(var(--editor-active-tab)); }
+  .border-editor-border { border-color: hsl(var(--editor-border)); }
+  .text-editor-text { color: hsl(var(--editor-text)); }
+  .text-editor-text-muted { color: hsl(var(--editor-text-muted)); }
+  .text-editor-text-dim { color: hsl(var(--editor-text-dim)); }
+  .text-editor-accent { color: hsl(var(--editor-accent)); }
+  .bg-editor-accent { background-color: hsl(var(--editor-accent)); }
 }
