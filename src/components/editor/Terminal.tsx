@@ -92,7 +92,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCo
       } else if (command.startsWith('touch ')) {
         const filename = command.replace('touch ', '').trim();
         addOutput('success', `Created file: ${filename}`);
-        // In a real implementation, this would create the file
+        // Notify parent component to create the file
+        onCreateFile?.(filename);
+        // Force file creation in file system
+        setTimeout(() => {
+          addOutput('output', `File ${filename} added to explorer`);
+        }, 100);
       } else if (command.startsWith('cat ')) {
         const filename = command.replace('cat ', '').trim();
         const fileSystem = getFileSystem ? getFileSystem() : [];

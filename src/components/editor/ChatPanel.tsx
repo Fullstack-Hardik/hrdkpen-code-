@@ -110,7 +110,17 @@ export const ChatPanel = ({ getActiveContext, onYouTubePlay }: ChatPanelProps) =
   };
 
   const copyMessage = (content: string) => {
-    navigator.clipboard.writeText(content);
+    // Extract only code blocks from the message
+    const codeBlocks = content.match(/```[\s\S]*?```/g);
+    if (codeBlocks && codeBlocks.length > 0) {
+      // Get the code content without the ```language markers
+      const codeContent = codeBlocks.map(block => 
+        block.replace(/```\w*\n?/, '').replace(/```$/, '')
+      ).join('\n\n');
+      navigator.clipboard.writeText(codeContent);
+    } else {
+      navigator.clipboard.writeText(content);
+    }
   };
 
   const applyCode = (content: string) => {

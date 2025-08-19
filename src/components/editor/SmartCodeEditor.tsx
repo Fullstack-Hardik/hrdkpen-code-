@@ -30,6 +30,7 @@ import {
   Youtube
 } from 'lucide-react';
 import { ChatPanel } from './ChatPanel';
+import { YouTubeSection } from './YouTubeSection';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 
 // Default file structure
@@ -820,6 +821,7 @@ export const SmartCodeEditor = () => {
                       htmlContent={previewContent.html} 
                       cssContent={previewContent.css} 
                       jsContent={previewContent.js}
+                      activeFileName={openTabs.find(tab => tab.id === activeTab)?.name}
                     />
                   </TabsContent>
                   
@@ -835,8 +837,15 @@ export const SmartCodeEditor = () => {
                       onYouTubePlay={(url) => {
                         setYoutubeUrl(url);
                         setShowYouTube(true);
-                        setRightPanelVisible(false);
-                        setSidebarVisible(false);
+                      }}
+                    />
+                  </TabsContent>
+                  
+                  <TabsContent value="youtube" className="flex-1 m-0">
+                    <YouTubeSection 
+                      onPlayVideo={(url) => {
+                        setYoutubeUrl(url);
+                        setShowYouTube(true);
                       }}
                     />
                   </TabsContent>
@@ -853,18 +862,6 @@ export const SmartCodeEditor = () => {
         
         {/* Bottom Terminal - persist mounted */}
         <div className="border-t border-border bg-editor-bg flex flex-col transition-all duration-200" style={{ height: terminalVisible ? '300px' : '0px', overflow: 'hidden' }}>
-          <div className="flex items-center justify-between bg-editor-sidebar border-b border-border px-3 py-2 h-10">
-            <div className="text-sm font-medium text-editor-text">Terminal</div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setTerminalVisible(false)}
-              className="h-6 w-6 p-0"
-              title="Close terminal"
-            >
-              <ChevronDown className="w-3 h-3" />
-            </Button>
-          </div>
           <div className="flex-1 min-h-0">
             <MultiTerminal ref={multiTerminalRef} getFileSystem={() => files} onCreateFile={(fullPath) => {
               // Handle terminal touch command file creation

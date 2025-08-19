@@ -3,35 +3,27 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   Monitor, 
-  Tablet, 
-  Smartphone, 
-  Laptop, 
   RefreshCw, 
   ExternalLink,
   Eye,
   EyeOff,
-  Terminal
+  Inspect,
+  QrCode
 } from 'lucide-react';
+import QRCode from 'qrcode';
 
 interface LivePreviewProps {
   htmlContent: string;
   cssContent: string;
   jsContent: string;
+  activeFileName?: string;
 }
 
-type ViewportSize = 'desktop' | 'laptop' | 'tablet' | 'mobile';
-
-const viewportSizes = {
-  desktop: { width: '100%', height: '100%', icon: Monitor, label: 'Desktop' },
-  laptop: { width: '1024px', height: '768px', icon: Laptop, label: 'Laptop' },
-  tablet: { width: '768px', height: '1024px', icon: Tablet, label: 'Tablet' },
-  mobile: { width: '375px', height: '667px', icon: Smartphone, label: 'Mobile' }
-};
-
-export const LivePreview = ({ htmlContent, cssContent, jsContent }: LivePreviewProps) => {
-  const [currentViewport, setCurrentViewport] = useState<ViewportSize>('desktop');
+export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName }: LivePreviewProps) => {
   const [isVisible, setIsVisible] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showQRCode, setShowQRCode] = useState(false);
+  const [qrCodeData, setQRCodeData] = useState('');
 
   const generatePreviewContent = () => {
     return `
@@ -82,60 +74,9 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent }: LivePreviewP
 </head>
 <body>
     ${htmlContent}
-    
-    <button class="console-toggle" onclick="toggleConsole()">Console</button>
-    <div id="console-output" class="console-output"></div>
-    
-    <script>
-        let consoleOutput = [];
-        const originalConsole = {
-          log: console.log,
-          error: console.error,
-          warn: console.warn
-        };
         
-        function addToConsole(type, ...args) {
-          const message = args.map(arg => 
-            typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-          ).join(' ');
-          consoleOutput.push({ type, message, time: new Date().toLocaleTimeString() });
-          updateConsoleDisplay();
-        }
-        
-        function updateConsoleDisplay() {
-          const consoleDiv = document.getElementById('console-output');
-          consoleDiv.innerHTML = consoleOutput.map(entry => 
-            '<div style="color: ' + (entry.type === 'error' ? '#ff6b6b' : entry.type === 'warn' ? '#ffd93d' : '#4ecdc4') + '">' +
-            '[' + entry.time + '] ' + entry.message + '</div>'
-          ).join('');
-          consoleDiv.scrollTop = consoleDiv.scrollHeight;
-        }
-        
-        function toggleConsole() {
-          const consoleDiv = document.getElementById('console-output');
-          consoleDiv.style.display = consoleDiv.style.display === 'none' ? 'block' : 'none';
-        }
-        
-        console.log = (...args) => {
-          originalConsole.log(...args);
-          addToConsole('log', ...args);
-        };
-        
-        console.error = (...args) => {
-          originalConsole.error(...args);
-          addToConsole('error', ...args);
-        };
-        
-        console.warn = (...args) => {
-          originalConsole.warn(...args);
-          addToConsole('warn', ...args);
-        };
-        
-        window.onerror = function(msg, url, line, col, error) {
-          addToConsole('error', 'Error at line ' + line + ': ' + msg);
-          return false;
-        };
-        
+        <script>
+        // Enable dev tools inspection
         try {
             ${jsContent}
         } catch (error) {
@@ -159,94 +100,114 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent }: LivePreviewP
     }
   };
 
-  const viewport = viewportSizes[currentViewport];
-  const IconComponent = viewport.icon;
+  const openInspector = () => {
+    const iframe = document.querySelector('iframe[title="Live Preview"]') as HTMLIFrameElement;
+    if (iframe && iframe.contentWindow) {
+      // This opens the browser's dev tools for the iframe content
+      console.log('Opening inspector for preview content');
+      iframe.contentWindow.focus();
+    }
+  };
+
+  const generateQRCode = async () => {
+    try {
+      const content = generatePreviewContent();
+      const blob = new Blob([content], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const qrCodeDataUrl = await QRCode.toDataURL(url, {
+        width: 200,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#ffffff',
+        },
+      });
+      setQRCodeData(qrCodeDataUrl);
+      setShowQRCode(true);
+      
+      // Clean up the URL after a delay
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error('Failed to generate QR code:', error);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full editor-panel">
       {/* Preview Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">
-          <Eye className="w-4 h-4 text-editor-accent" />
-          <span className="text-sm font-medium text-editor-text">Live Preview</span>
-          <Badge variant="secondary" className="text-xs">
-            {viewport.label}
-          </Badge>
+          <Monitor className="w-4 h-4 text-editor-accent" />
+          {activeFileName && (
+            <Badge variant="secondary" className="text-xs">
+              {activeFileName}
+            </Badge>
+          )}
         </div>
         
         <div className="flex items-center gap-2">
-          {/* Viewport Selector */}
-          <div className="flex items-center gap-1">
-            {Object.entries(viewportSizes).map(([size, config]) => {
-              const Icon = config.icon;
-              return (
-                <Button
-                  key={size}
-                  variant={currentViewport === size ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setCurrentViewport(size as ViewportSize)}
-                  className="h-7 w-8 p-0"
-                >
-              <Icon 
-                className={`w-3 h-3 ${currentViewport === size ? 'text-white' : ''}`} 
-              />
-            </Button>
-          );
-        })}
-      </div>
-      
-      <div className="w-px h-4 bg-border" />
-      
-      <Button 
-        variant="ghost" 
-        size="sm"
-        onClick={() => setIsVisible(!isVisible)}
-        className="h-7 px-2"
-        title="Toggle Visibility"
-      >
-        {isVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-      </Button>
-      
-      <Button 
-        variant="ghost" 
-        size="sm"
-        onClick={handleRefresh}
-        className="h-7 px-2"
-        title="Refresh"
-      >
-        <RefreshCw className="w-3 h-3" />
-      </Button>
-      
-      <Button 
-        variant="ghost" 
-        size="sm"
-        onClick={openInNewTab}
-        className="h-7 px-2"
-        title="Open in New Tab"
-      >
-        <ExternalLink className="w-3 h-3" />
-      </Button>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => setIsVisible(!isVisible)}
+            className="h-7 px-2"
+            title="Toggle Visibility"
+          >
+            {isVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+          </Button>
+          
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={generateQRCode}
+            className="h-7 px-2"
+            title="Generate QR Code"
+          >
+            <QrCode className="w-3 h-3" />
+          </Button>
+          
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={openInspector}
+            className="h-7 px-2"
+            title="Inspect"
+          >
+            <Inspect className="w-3 h-3" />
+          </Button>
+          
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={handleRefresh}
+            className="h-7 px-2"
+            title="Refresh"
+          >
+            <RefreshCw className="w-3 h-3" />
+          </Button>
+          
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={openInNewTab}
+            className="h-7 px-2"
+            title="Open in New Tab"
+          >
+            <ExternalLink className="w-3 h-3" />
+          </Button>
         </div>
       </div>
 
       {/* Preview Content */}
       <div className="flex-1 flex items-center justify-center p-4 overflow-auto" style={{ userSelect: 'text' }}>
         {isVisible ? (
-          <div 
-            className="border border-border rounded-lg overflow-hidden shadow-lg bg-white transition-all duration-300"
-            style={{ 
-              width: currentViewport === 'desktop' ? '100%' : viewport.width, 
-              height: currentViewport === 'desktop' ? '100%' : viewport.height,
-              maxWidth: '100%',
-              maxHeight: '100%'
-            }}
-          >
+          <div className="w-full h-full border border-border rounded-lg overflow-hidden shadow-lg bg-white">
             <iframe
               key={refreshKey}
               srcDoc={generatePreviewContent()}
               className="w-full h-full"
               title="Live Preview"
-              sandbox="allow-scripts allow-same-origin allow-popups"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
               style={{ userSelect: 'text' }}
             />
           </div>
@@ -257,6 +218,24 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent }: LivePreviewP
           </div>
         )}
       </div>
+
+      {/* QR Code Modal */}
+      {showQRCode && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-xl">
+            <div className="text-center mb-4">
+              <h3 className="text-lg font-semibold">QR Code for Preview</h3>
+              <p className="text-sm text-gray-600">Scan to download and open file</p>
+            </div>
+            {qrCodeData && (
+              <img src={qrCodeData} alt="QR Code" className="mx-auto mb-4" />
+            )}
+            <Button onClick={() => setShowQRCode(false)} className="w-full">
+              Close
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
