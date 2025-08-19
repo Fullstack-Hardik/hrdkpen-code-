@@ -37,6 +37,7 @@ interface FileExplorerProps {
   onFileRename: (id: string, newName: string) => void;
   selectedFileId?: string;
   onImportFolder?: (files: { path: string; content: string }[]) => void;
+  onMove?: (dragId: string, targetFolderId: string | null) => void;
 }
 
 export const FileExplorer = ({ 
@@ -47,6 +48,7 @@ export const FileExplorer = ({
   onFileRename,
   selectedFileId, 
   onImportFolder,
+  onMove,
 }: FileExplorerProps) => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -124,6 +126,18 @@ export const FileExplorer = ({
             } else {
               onFileSelect(file);
             }
+          }}
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData('text/file-id', file.id);
+          }}
+          onDragOver={(e) => {
+            if (file.type === 'folder') e.preventDefault();
+          }}
+          onDrop={(e) => {
+            const dragId = e.dataTransfer.getData('text/file-id');
+            if (!dragId) return;
+            if (file.type === 'folder') onMove?.(dragId, file.id);
           }}
         >
           {getFileIcon(file)}
@@ -264,7 +278,10 @@ export const FileExplorer = ({
       )}
       
       {/* File Tree */}
-      <div className="overflow-auto flex-1 p-2">
+      <div className="overflow-auto flex-1 p-2" onDragOver={(e) => e.preventDefault()} onDrop={(e) => {
+        const dragId = e.dataTransfer.getData('text/file-id');
+        if (dragId) onMove?.(dragId, null);
+      }}>
         {files.map(file => renderFileNode(file))}
       </div>
     </div>

@@ -328,15 +328,6 @@ export const ChatPanel = ({ getActiveContext, onYouTubePlay }: ChatPanelProps) =
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => applyCode(m.content)}
-                      className="h-6 px-2 text-xs"
-                    >
-                      <Check className="w-3 h-3 mr-1" />
-                      Apply
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
                       onClick={() => {
                         setInput(`Rewrite: ${m.content.slice(0, 50)}...`);
                         inputRef.current?.focus();
@@ -418,7 +409,7 @@ export const ChatPanel = ({ getActiveContext, onYouTubePlay }: ChatPanelProps) =
             </Button>
             <Button 
               onClick={send} 
-              disabled={loading || !input.trim() || !currentSessionId}
+              disabled={loading || !input.trim()}
               className="bg-editor-accent hover:bg-editor-accent/80 text-white h-8 px-3"
             >
               {loading ? (

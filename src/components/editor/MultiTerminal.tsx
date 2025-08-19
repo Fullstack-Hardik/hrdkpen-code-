@@ -7,6 +7,7 @@ import type { FileNode } from './FileExplorer';
 
 interface MultiTerminalProps {
   getFileSystem?: () => FileNode[];
+  onCreateFile?: (fullPath: string) => void;
 }
 
 export type MultiTerminalHandle = {
@@ -14,7 +15,7 @@ export type MultiTerminalHandle = {
 };
 
 export const MultiTerminal = forwardRef<MultiTerminalHandle, MultiTerminalProps>(
-  ({ getFileSystem }, ref) => {
+  ({ getFileSystem, onCreateFile }, ref) => {
     const [sessions, setSessions] = useState<{ id: string; name: string }[]>([
       { id: 'term-1', name: 'Terminal 1' },
     ]);
@@ -82,11 +83,12 @@ export const MultiTerminal = forwardRef<MultiTerminalHandle, MultiTerminalProps>
 
           {sessions.map((s) => (
             <div key={s.id} className={`flex-1 ${active === s.id ? 'block' : 'hidden'}`}>
-              <Terminal
+            <Terminal
                 ref={(r) => { if (r) termRefs.current[s.id] = r; }}
                 getFileSystem={getFileSystem}
                 name={s.name}
                 showHeader={false}
+                onCreateFile={onCreateFile}
               />
             </div>
           ))}

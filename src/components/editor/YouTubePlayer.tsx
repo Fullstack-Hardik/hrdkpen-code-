@@ -38,6 +38,10 @@ export const YouTubePlayer = ({ url, onClose }: YouTubePlayerProps) => {
         x: e.clientX - dragStart.x,
         y: e.clientY - dragStart.y
       });
+    } else if (isResizing) {
+      const newWidth = Math.max(320, e.clientX - dragStart.x);
+      const newHeight = Math.max(180, e.clientY - dragStart.y);
+      setSize({ width: newWidth, height: newHeight });
     }
   };
 

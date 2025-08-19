@@ -11,15 +11,17 @@ import {
   Search,
   ExternalLink,
   Download,
-  Globe
+  Globe,
+  Terminal as TerminalIcon
 } from 'lucide-react';
 
 interface SystemHeaderProps {
   onExport?: () => void;
   onPublish?: () => void;
+  onToggleTerminal?: () => void;
 }
 
-export const SystemHeader = ({ onExport, onPublish }: SystemHeaderProps) => {
+export const SystemHeader = ({ onExport, onPublish, onToggleTerminal }: SystemHeaderProps) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [systemInfo, setSystemInfo] = useState({
     cpu: '45%',
@@ -149,6 +151,16 @@ export const SystemHeader = ({ onExport, onPublish }: SystemHeaderProps) => {
             title="Publish"
           >
             <Globe className="w-4 h-4" />
+          </Button>
+
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={onToggleTerminal}
+            className="text-editor-text-muted hover:text-editor-text"
+            title="Terminal"
+          >
+            <TerminalIcon className="w-4 h-4" />
           </Button>
           
           <Clock className="w-4 h-4 text-editor-text-muted" />

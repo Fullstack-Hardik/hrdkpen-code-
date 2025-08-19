@@ -27,6 +27,7 @@ interface TerminalProps {
   name?: string;
   showHeader?: boolean;
   onExit?: () => void;
+  onCreateFile?: (fullPath: string) => void;
 }
 
 export type TerminalHandle = {
@@ -34,7 +35,7 @@ export type TerminalHandle = {
   runTS: (code: string) => void;
   execute: (cmd: string) => void;
 };
-export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCode, getFileSystem, name = 'Terminal', showHeader = true, onExit }, ref) => {
+export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCode, getFileSystem, name = 'Terminal', showHeader = true, onExit, onCreateFile }, ref) => {
   const [output, setOutput] = useState<TerminalOutput[]>([
     {
       id: '1',
@@ -57,7 +58,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCo
 
   const addOutput = (type: TerminalOutput['type'], content: string) => {
     const newOutput: TerminalOutput = {
-      id: Date.now().toString(),
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       type,
       content,
       timestamp: new Date()

@@ -429,6 +429,14 @@ export const SmartCodeEditor = () => {
         setOpenTabs(prev => [...prev, file]);
       }
       setActiveTab(file.id);
+
+      // If HTML file, try to open common linked files too
+      if (file.language === 'html') {
+        const css = files.flatMap(f => f.type === 'folder' ? (f.children || []) : [f]).find(f => f.name === 'styles.css');
+        const js = files.flatMap(f => f.type === 'folder' ? (f.children || []) : [f]).find(f => f.name === 'script.js');
+        if (css && !openTabs.find(t => t.id === css.id)) setOpenTabs(prev => [...prev, css]);
+        if (js && !openTabs.find(t => t.id === js.id)) setOpenTabs(prev => [...prev, js]);
+      }
     }
   };
 
@@ -609,7 +617,7 @@ export const SmartCodeEditor = () => {
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-editor-bg">
       {/* Header */}
-      <SystemHeader />
+      <SystemHeader onExport={exportProject} onPublish={publishProject} onToggleTerminal={() => setTerminalVisible(v => !v)} />
       
       {/* Main Editor Layout */}
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -627,6 +635,7 @@ export const SmartCodeEditor = () => {
                     onFileRename={handleFileRename}
                     selectedFileId={activeTab}
                     onImportFolder={handleImportFolder}
+                    onMove={(dragId, targetFolderId) => handleMoveNode(dragId, targetFolderId)}
                   />
                 </div>
               </ResizablePanel>
@@ -785,31 +794,30 @@ export const SmartCodeEditor = () => {
           )}
         </ResizablePanelGroup>
         
-        {/* Bottom Terminal */}
-        {terminalVisible && (
-          <div className="h-[300px] border-t border-border bg-editor-bg flex flex-col">
-            <div className="flex items-center justify-between bg-editor-sidebar border-b border-border px-3 py-2 h-10">
-              <div className="text-sm font-medium text-editor-text">Terminal</div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setTerminalVisible(false)}
-                className="h-6 w-6 p-0"
-                title="Close terminal"
-              >
-                <ChevronDown className="w-3 h-3" />
-              </Button>
-            </div>
-            <div className="flex-1">
-              <MultiTerminal ref={multiTerminalRef} getFileSystem={() => files} />
-            </div>
+        {/* Bottom Terminal - persist mounted */}
+        <div className="border-t border-border bg-editor-bg flex flex-col transition-all duration-200" style={{ height: terminalVisible ? '300px' : '0px', overflow: 'hidden' }}>
+          <div className="flex items-center justify-between bg-editor-sidebar border-b border-border px-3 py-2 h-10">
+            <div className="text-sm font-medium text-editor-text">Terminal</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTerminalVisible(false)}
+              className="h-6 w-6 p-0"
+              title="Close terminal"
+            >
+              <ChevronDown className="w-3 h-3" />
+            </Button>
           </div>
-        )}
+          <div className="flex-1 min-h-0">
+            <MultiTerminal ref={multiTerminalRef} getFileSystem={() => files} />
+          </div>
+        </div>
       </div>
       
       {/* Toggle Buttons */}
-      <div className="absolute bottom-4 right-4 flex flex-col gap-2">
-        {!rightPanelVisible && (
+      {/* Top-right: open right panel */}
+      {!rightPanelVisible && (
+        <div className="fixed top-16 right-3 z-50">
           <Button
             onClick={() => setRightPanelVisible(true)}
             className="rounded-full h-9 w-9 p-0 glow-accent"
@@ -817,8 +825,11 @@ export const SmartCodeEditor = () => {
           >
             <Monitor className="w-4 h-4" />
           </Button>
-        )}
-        {!terminalVisible && (
+        </div>
+      )}
+      {/* Bottom-right: open terminal */}
+      {!terminalVisible && (
+        <div className="fixed bottom-4 right-4 z-50">
           <Button
             onClick={() => setTerminalVisible(true)}
             className="rounded-full h-9 w-9 p-0 glow-accent"
@@ -826,8 +837,8 @@ export const SmartCodeEditor = () => {
           >
             <ChevronUp className="w-4 h-4" />
           </Button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
