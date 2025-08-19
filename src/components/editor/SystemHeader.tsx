@@ -9,10 +9,17 @@ import {
   Wifi, 
   Settings,
   Search,
-  ExternalLink
+  ExternalLink,
+  Download,
+  Globe
 } from 'lucide-react';
 
-export const SystemHeader = () => {
+interface SystemHeaderProps {
+  onExport?: () => void;
+  onPublish?: () => void;
+}
+
+export const SystemHeader = ({ onExport, onPublish }: SystemHeaderProps) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [systemInfo, setSystemInfo] = useState({
     cpu: '45%',
@@ -52,7 +59,7 @@ export const SystemHeader = () => {
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2">
           <i className="fas fa-code text-editor-accent text-lg" />
-          <h1 className="text-lg font-bold text-editor-text">Smart Code Editor</h1>
+          <h1 className="text-lg font-bold text-editor-text">HRDKPEN</h1>
         </div>
         
         <div className="hidden md:flex items-center gap-2">
@@ -122,8 +129,28 @@ export const SystemHeader = () => {
       </div>
 
       {/* Right Section - Time and Settings */}
-      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4">
         <div className="hidden sm:flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={onExport}
+            className="text-editor-text-muted hover:text-editor-text"
+            title="Export Project"
+          >
+            <Download className="w-4 h-4" />
+          </Button>
+          
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={onPublish}
+            className="text-editor-text-muted hover:text-editor-text"
+            title="Publish"
+          >
+            <Globe className="w-4 h-4" />
+          </Button>
+          
           <Clock className="w-4 h-4 text-editor-text-muted" />
           <span className="text-sm font-mono text-editor-text">
             {currentTime.toLocaleTimeString()}

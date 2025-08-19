@@ -9,7 +9,8 @@ import {
   RefreshCw, 
   ExternalLink,
   Eye,
-  EyeOff
+  EyeOff,
+  Terminal
 } from 'lucide-react';
 
 interface LivePreviewProps {
@@ -49,17 +50,97 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, device = 'desk
             background: #ffffff;
             color: #333333;
         }
+        .console-output {
+          position: fixed;
+          bottom: 10px;
+          right: 10px;
+          background: #1a1a1a;
+          color: #fff;
+          padding: 10px;
+          border-radius: 6px;
+          max-width: 300px;
+          max-height: 200px;
+          overflow-y: auto;
+          font-family: monospace;
+          font-size: 12px;
+          display: none;
+          z-index: 1000;
+        }
+        .console-toggle {
+          position: fixed;
+          bottom: 10px;
+          right: 10px;
+          background: #007acc;
+          color: white;
+          border: none;
+          padding: 8px;
+          border-radius: 4px;
+          cursor: pointer;
+          z-index: 1001;
+        }
         ${cssContent}
     </style>
 </head>
 <body>
     ${htmlContent}
+    
+    <button class="console-toggle" onclick="toggleConsole()">Console</button>
+    <div id="console-output" class="console-output"></div>
+    
     <script>
+        let consoleOutput = [];
+        const originalConsole = {
+          log: console.log,
+          error: console.error,
+          warn: console.warn
+        };
+        
+        function addToConsole(type, ...args) {
+          const message = args.map(arg => 
+            typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+          ).join(' ');
+          consoleOutput.push({ type, message, time: new Date().toLocaleTimeString() });
+          updateConsoleDisplay();
+        }
+        
+        function updateConsoleDisplay() {
+          const consoleDiv = document.getElementById('console-output');
+          consoleDiv.innerHTML = consoleOutput.map(entry => 
+            '<div style="color: ' + (entry.type === 'error' ? '#ff6b6b' : entry.type === 'warn' ? '#ffd93d' : '#4ecdc4') + '">' +
+            '[' + entry.time + '] ' + entry.message + '</div>'
+          ).join('');
+          consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+        
+        function toggleConsole() {
+          const consoleDiv = document.getElementById('console-output');
+          consoleDiv.style.display = consoleDiv.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        console.log = (...args) => {
+          originalConsole.log(...args);
+          addToConsole('log', ...args);
+        };
+        
+        console.error = (...args) => {
+          originalConsole.error(...args);
+          addToConsole('error', ...args);
+        };
+        
+        console.warn = (...args) => {
+          originalConsole.warn(...args);
+          addToConsole('warn', ...args);
+        };
+        
+        window.onerror = function(msg, url, line, col, error) {
+          addToConsole('error', 'Error at line ' + line + ': ' + msg);
+          return false;
+        };
+        
         try {
             ${jsContent}
         } catch (error) {
-            console.error('JavaScript Error:', error);
-            document.body.innerHTML += '<div style="background: #ffebee; color: #c62828; padding: 10px; margin: 10px 0; border-radius: 4px; border-left: 4px solid #c62828;"><strong>JavaScript Error:</strong> ' + error.message + '</div>';
+            console.error('JavaScript Error:', error.message);
         }
     </script>
 </body>
@@ -107,51 +188,56 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, device = 'desk
                   onClick={() => setCurrentViewport(size as ViewportSize)}
                   className="h-7 w-8 p-0"
                 >
-                  <Icon className="w-3 h-3" />
-                </Button>
-              );
-            })}
-          </div>
-          
-          <div className="w-px h-4 bg-border" />
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => setIsVisible(!isVisible)}
-            className="h-7 px-2"
-          >
-            {isVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={handleRefresh}
-            className="h-7 px-2"
-          >
-            <RefreshCw className="w-3 h-3" />
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={openInNewTab}
-            className="h-7 px-2"
-          >
-            <ExternalLink className="w-3 h-3" />
-          </Button>
+              <Icon 
+                className={`w-3 h-3 ${currentViewport === size ? 'text-white' : ''}`} 
+              />
+            </Button>
+          );
+        })}
+      </div>
+      
+      <div className="w-px h-4 bg-border" />
+      
+      <Button 
+        variant="ghost" 
+        size="sm"
+        onClick={() => setIsVisible(!isVisible)}
+        className="h-7 px-2"
+        title="Toggle Visibility"
+      >
+        {isVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+      </Button>
+      
+      <Button 
+        variant="ghost" 
+        size="sm"
+        onClick={handleRefresh}
+        className="h-7 px-2"
+        title="Refresh"
+      >
+        <RefreshCw className="w-3 h-3" />
+      </Button>
+      
+      <Button 
+        variant="ghost" 
+        size="sm"
+        onClick={openInNewTab}
+        className="h-7 px-2"
+        title="Open in New Tab"
+      >
+        <ExternalLink className="w-3 h-3" />
+      </Button>
         </div>
       </div>
 
       {/* Preview Content */}
-      <div className="flex-1 flex items-center justify-center p-4 overflow-auto">
+      <div className="flex-1 flex items-center justify-center p-4 overflow-auto" style={{ userSelect: 'text' }}>
         {isVisible ? (
           <div 
-            className="border border-border rounded-lg overflow-hidden shadow-lg bg-white"
+            className="border border-border rounded-lg overflow-hidden shadow-lg bg-white transition-all duration-300"
             style={{ 
-              width: viewport.width, 
-              height: viewport.height,
+              width: currentViewport === 'desktop' ? '100%' : viewport.width, 
+              height: currentViewport === 'desktop' ? '100%' : viewport.height,
               maxWidth: '100%',
               maxHeight: '100%'
             }}
@@ -161,7 +247,8 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, device = 'desk
               srcDoc={generatePreviewContent()}
               className="w-full h-full"
               title="Live Preview"
-              sandbox="allow-scripts allow-same-origin"
+              sandbox="allow-scripts allow-same-origin allow-popups"
+              style={{ userSelect: 'text' }}
             />
           </div>
         ) : (

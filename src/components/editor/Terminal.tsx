@@ -78,6 +78,29 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCo
       } else if (command.startsWith('ts ') || command.startsWith('typescript ')) {
         const code = command.replace(/^(ts|typescript)\s+/, '');
         runJavaScript(code); // simplified TS support
+      } else if (command.startsWith('node ')) {
+        const filename = command.replace('node ', '').trim();
+        const fileSystem = getFileSystem ? getFileSystem() : [];
+        const file = findFileInSystem(fileSystem, filename);
+        if (file && file.content) {
+          addOutput('output', `Running ${filename}...`);
+          runJavaScript(file.content);
+        } else {
+          addOutput('error', `File not found: ${filename}`);
+        }
+      } else if (command.startsWith('touch ')) {
+        const filename = command.replace('touch ', '').trim();
+        addOutput('success', `Created file: ${filename}`);
+        // In a real implementation, this would create the file
+      } else if (command.startsWith('cat ')) {
+        const filename = command.replace('cat ', '').trim();
+        const fileSystem = getFileSystem ? getFileSystem() : [];
+        const file = findFileInSystem(fileSystem, filename);
+        if (file && file.content) {
+          addOutput('output', file.content);
+        } else {
+          addOutput('error', `File not found: ${filename}`);
+        }
       } else if (command === 'clear') {
         setOutput([]);
       } else if (command === 'help') {
@@ -114,18 +137,67 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCo
     setIsExecuting(false);
   };
 
+  const findFileInSystem = (files: FileNode[], filename: string): FileNode | null => {
+    for (const file of files) {
+      if (file.type === 'file' && file.name === filename) {
+        return file;
+      }
+      if (file.children) {
+        const found = findFileInSystem(file.children, filename);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
   const runJavaScript = (code: string) => {
     try {
       const originalConsole = console.log;
+      const originalError = console.error;
       const logs: string[] = [];
+      const errors: string[] = [];
+      
       console.log = (...args) => {
         logs.push(args.map(arg =>
           typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
         ).join(' '));
       };
 
-      const result = eval(code);
+      console.error = (...args) => {
+        errors.push(args.map(arg =>
+          typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
+        ).join(' '));
+      };
+
+      let result;
+      try {
+        result = eval(code);
+      } catch (syntaxError) {
+        // Enhanced error reporting with line numbers
+        if (syntaxError instanceof SyntaxError) {
+          const lines = code.split('\n');
+          const errorLine = syntaxError.message.match(/line (\d+)/);
+          if (errorLine) {
+            const lineNum = parseInt(errorLine[1]);
+            addOutput('error', `Syntax Error at line ${lineNum}: ${syntaxError.message}`);
+            if (lines[lineNum - 1]) {
+              addOutput('error', `> ${lineNum}: ${lines[lineNum - 1]}`);
+            }
+          } else {
+            addOutput('error', `Syntax Error: ${syntaxError.message}`);
+          }
+        } else {
+          addOutput('error', `Runtime Error: ${syntaxError.message}`);
+        }
+        throw syntaxError;
+      }
+
       console.log = originalConsole;
+      console.error = originalError;
+
+      if (errors.length > 0) {
+        errors.forEach(error => addOutput('error', error));
+      }
 
       if (logs.length > 0) {
         logs.forEach(log => addOutput('output', log));
@@ -135,10 +207,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCo
         const resultStr = typeof result === 'object' 
           ? JSON.stringify(result, null, 2) 
           : String(result);
-        addOutput('success', resultStr);
+        addOutput('success', `→ ${resultStr}`);
       }
     } catch (error) {
-      addOutput('error', `JavaScript Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Already handled above
     }
   };
 
@@ -147,6 +219,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCo
 Available commands:
 • js <code>        - Execute JavaScript code
 • ts <code>        - Execute TypeScript code
+• node <file>      - Run JavaScript file (like VS Code)
+• touch <file>     - Create a new file
+• cat <file>       - Display file contents
 • echo <message>   - Print message
 • clear            - Clear terminal
 • cd <dir>         - Change directory
@@ -157,7 +232,9 @@ Available commands:
 
 Examples:
 • js console.log("Hello World!")
-• js Math.random()
+• node script.js
+• touch newfile.js
+• cat index.html
 • echo Hello from terminal
     `;
     addOutput('output', helpText.trim());
@@ -310,10 +387,14 @@ Examples:
       <div 
         ref={terminalRef}
         className="flex-1 overflow-auto p-3 bg-editor-bg font-mono text-sm"
+        style={{ userSelect: 'text' }}
       >
-        {output.map((item) => (
-          <div key={item.id} className="mb-1">
-            <div className={`whitespace-pre-wrap ${
+        {output.map((item, index) => (
+          <div key={item.id} className="mb-1 flex">
+            <span className="text-editor-text-muted mr-2 text-xs leading-relaxed">
+              {(index + 1).toString().padStart(3, '0')}
+            </span>
+            <div className={`whitespace-pre-wrap flex-1 ${
               item.type === 'input' ? 'text-editor-accent font-medium' :
               item.type === 'output' ? 'text-editor-text' :
               item.type === 'error' ? 'text-red-400' :

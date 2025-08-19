@@ -5,6 +5,7 @@ import { CodeEditor } from './CodeEditor';
 import { LivePreview } from './LivePreview';
 import { Terminal } from './Terminal';
 import { MultiTerminal, MultiTerminalHandle } from './MultiTerminal';
+import { YouTubePlayer } from './YouTubePlayer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +22,12 @@ import {
   Laptop,
   ChevronUp,
   ChevronDown,
-  Sparkles
+  Sparkles,
+  Play,
+  Upload,
+  Download,
+  Globe,
+  Youtube
 } from 'lucide-react';
 import { ChatPanel } from './ChatPanel';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
@@ -332,6 +338,8 @@ export const SmartCodeEditor = () => {
   const [terminalVisible, setTerminalVisible] = useState(true);
   const [activeBottomTab, setActiveBottomTab] = useState('preview');
   const [previewDevice, setPreviewDevice] = useState<'mobile' | 'tablet' | 'desktop' | 'laptop'>('desktop');
+  const [showYouTube, setShowYouTube] = useState(false);
+  const [youtubeUrl, setYoutubeUrl] = useState('');
   const multiTerminalRef = useRef<MultiTerminalHandle>(null);
 
   // Auto-save functionality
