@@ -509,6 +509,58 @@ export const SmartCodeEditor = () => {
     );
   };
 
+  const handleMoveNode = (dragId: string, targetFolderId: string | null) => {
+    const moveNodeInTree = (fileList: FileNode[], dragId: string, targetFolderId: string | null): FileNode[] => {
+      let draggedNode: FileNode | null = null;
+      
+      // First, find and remove the dragged node
+      const removeNode = (files: FileNode[]): FileNode[] => {
+        return files.filter(file => {
+          if (file.id === dragId) {
+            draggedNode = file;
+            return false;
+          }
+          if (file.children) {
+            file.children = removeNode(file.children);
+          }
+          return true;
+        });
+      };
+      
+      const updatedFiles = removeNode([...fileList]);
+      
+      if (!draggedNode) return fileList;
+      
+      // If targetFolderId is null, move to root
+      if (targetFolderId === null) {
+        return [...updatedFiles, draggedNode];
+      }
+      
+      // Otherwise, find the target folder and add the node to its children
+      const addToFolder = (files: FileNode[]): FileNode[] => {
+        return files.map(file => {
+          if (file.id === targetFolderId && file.type === 'folder') {
+            return {
+              ...file,
+              children: [...(file.children || []), draggedNode!]
+            };
+          }
+          if (file.children) {
+            return {
+              ...file,
+              children: addToFolder(file.children)
+            };
+          }
+          return file;
+        });
+      };
+      
+      return addToFolder(updatedFiles);
+    };
+    
+    setFiles(prev => moveNodeInTree(prev, dragId, targetFolderId));
+  };
+
   const getLanguageFromExtension = (filename: string): string => {
     const ext = filename.split('.').pop()?.toLowerCase();
     switch (ext) {
@@ -794,6 +846,11 @@ export const SmartCodeEditor = () => {
           )}
         </ResizablePanelGroup>
         
+        {/* YouTube Player Overlay */}
+        {showYouTube && (
+          <YouTubePlayer url={youtubeUrl} onClose={() => setShowYouTube(false)} />
+        )}
+        
         {/* Bottom Terminal - persist mounted */}
         <div className="border-t border-border bg-editor-bg flex flex-col transition-all duration-200" style={{ height: terminalVisible ? '300px' : '0px', overflow: 'hidden' }}>
           <div className="flex items-center justify-between bg-editor-sidebar border-b border-border px-3 py-2 h-10">
@@ -809,7 +866,12 @@ export const SmartCodeEditor = () => {
             </Button>
           </div>
           <div className="flex-1 min-h-0">
-            <MultiTerminal ref={multiTerminalRef} getFileSystem={() => files} />
+            <MultiTerminal ref={multiTerminalRef} getFileSystem={() => files} onCreateFile={(fullPath) => {
+              // Handle terminal touch command file creation
+              const pathParts = fullPath.split('/').filter(Boolean);
+              const fileName = pathParts.pop() || 'untitled.txt';
+              handleFileCreate(fileName, 'file');
+            }} />
           </div>
         </div>
       </div>
