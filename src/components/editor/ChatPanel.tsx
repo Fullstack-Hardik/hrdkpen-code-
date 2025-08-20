@@ -82,6 +82,26 @@ export const ChatPanel = ({ getActiveContext, onYouTubePlay }: ChatPanelProps) =
   }, [messages]);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Double shift to search MDN
+      if (e.key === 'Shift' && e.repeat === false) {
+        const now = Date.now();
+        const lastShift = (window as any).lastShiftTime || 0;
+        if (now - lastShift < 500) {
+          const selection = window.getSelection()?.toString().trim();
+          if (selection) {
+            window.open(`https://developer.mozilla.org/en-US/search?q=${encodeURIComponent(selection)}`, '_blank');
+          }
+        }
+        (window as any).lastShiftTime = now;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
     if (sessions.length === 0) {
       createNewSession();
     }
@@ -299,10 +319,39 @@ export const ChatPanel = ({ getActiveContext, onYouTubePlay }: ChatPanelProps) =
               <h3 className="text-lg font-semibold text-editor-text mb-2">AI Assistant</h3>
               <p className="text-sm">Ask me about your code, get suggestions, or request optimizations!</p>
             </div>
-            <div className="text-xs text-editor-text-dim space-y-1">
-              <p>Try: "Explain this function"</p>
-              <p>Try: "Optimize this code"</p>
-              <p>Try: "Add error handling"</p>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setInput("Fix bug: ")}
+                className="h-8 justify-start"
+              >
+                Fix bug
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setInput("Create component: ")}
+                className="h-8 justify-start"
+              >
+                Create component
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setInput("What is ")}
+                className="h-8 justify-start"
+              >
+                What is...
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setInput("Optimize this code")}
+                className="h-8 justify-start"
+              >
+                Optimize code
+              </Button>
             </div>
           </div>
         )}

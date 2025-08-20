@@ -928,15 +928,15 @@ export const SmartCodeEditor = () => {
           </Button>
         </div>
       )}
-      {/* Bottom-right: open terminal */}
+      {/* Bottom-left: open terminal */}
       {!terminalVisible && (
-        <div className="fixed bottom-4 right-4 z-50">
+        <div className="fixed bottom-4 left-4 z-50">
           <Button
             onClick={() => setTerminalVisible(true)}
-            className="rounded-full h-9 w-9 p-0 glow-accent"
-            title="Show terminal"
+            className="rounded-full h-10 w-10 p-0 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg border-2 border-white/20"
+            title="Open Terminal"
           >
-            <ChevronUp className="w-4 h-4" />
+            <ChevronUp className="w-5 h-5 text-white" />
           </Button>
         </div>
       )}

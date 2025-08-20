@@ -7,10 +7,14 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  Inspect,
-  QrCode
+  QrCode,
+  Smartphone,
+  Tablet,
+  Laptop,
+  Download
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import JSZip from 'jszip';
 
 interface LivePreviewProps {
   htmlContent: string;
@@ -24,6 +28,7 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
   const [refreshKey, setRefreshKey] = useState(0);
   const [showQRCode, setShowQRCode] = useState(false);
   const [qrCodeData, setQRCodeData] = useState('');
+  const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
 
   const generatePreviewContent = () => {
     return `
@@ -100,12 +105,20 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
     }
   };
 
-  const openInspector = () => {
-    const iframe = document.querySelector('iframe[title="Live Preview"]') as HTMLIFrameElement;
-    if (iframe && iframe.contentWindow) {
-      // This opens the browser's dev tools for the iframe content
-      console.log('Opening inspector for preview content');
-      iframe.contentWindow.focus();
+  const downloadFile = async () => {
+    try {
+      const content = generatePreviewContent();
+      const blob = new Blob([content], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = activeFileName || 'preview.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download file:', error);
     }
   };
 
@@ -113,8 +126,11 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
     try {
       const content = generatePreviewContent();
       const blob = new Blob([content], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const qrCodeDataUrl = await QRCode.toDataURL(url, {
+      
+      // Create a download URL that triggers file download
+      const downloadUrl = `data:text/html;charset=utf-8,${encodeURIComponent(content)}`;
+      
+      const qrCodeDataUrl = await QRCode.toDataURL(downloadUrl, {
         width: 200,
         margin: 2,
         color: {
@@ -124,11 +140,19 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
       });
       setQRCodeData(qrCodeDataUrl);
       setShowQRCode(true);
-      
-      // Clean up the URL after a delay
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) {
       console.error('Failed to generate QR code:', error);
+    }
+  };
+
+  const getPreviewDimensions = () => {
+    switch (previewMode) {
+      case 'mobile':
+        return { width: '375px', height: '667px' };
+      case 'tablet':
+        return { width: '768px', height: '1024px' };
+      default:
+        return { width: '100%', height: '100%' };
     }
   };
 
@@ -146,6 +170,37 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
         </div>
         
         <div className="flex items-center gap-2">
+          {/* Device Preview Modes */}
+          <div className="flex items-center gap-1 border border-border rounded">
+            <Button 
+              variant={previewMode === 'desktop' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setPreviewMode('desktop')}
+              className="h-6 px-2"
+              title="Desktop View"
+            >
+              <Laptop className="w-3 h-3" />
+            </Button>
+            <Button 
+              variant={previewMode === 'tablet' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setPreviewMode('tablet')}
+              className="h-6 px-2"
+              title="Tablet View"
+            >
+              <Tablet className="w-3 h-3" />
+            </Button>
+            <Button 
+              variant={previewMode === 'mobile' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setPreviewMode('mobile')}
+              className="h-6 px-2"
+              title="Mobile View"
+            >
+              <Smartphone className="w-3 h-3" />
+            </Button>
+          </div>
+          
           <Button 
             variant="ghost" 
             size="sm"
@@ -169,11 +224,11 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
           <Button 
             variant="ghost" 
             size="sm"
-            onClick={openInspector}
+            onClick={downloadFile}
             className="h-7 px-2"
-            title="Inspect"
+            title="Download File"
           >
-            <Inspect className="w-3 h-3" />
+            <Download className="w-3 h-3" />
           </Button>
           
           <Button 
@@ -201,7 +256,14 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
       {/* Preview Content */}
       <div className="flex-1 flex items-center justify-center p-4 overflow-auto" style={{ userSelect: 'text' }}>
         {isVisible ? (
-          <div className="w-full h-full border border-border rounded-lg overflow-hidden shadow-lg bg-white">
+          <div 
+            className="border border-border rounded-lg overflow-hidden shadow-lg bg-white mx-auto"
+            style={{
+              ...getPreviewDimensions(),
+              maxWidth: '100%',
+              maxHeight: '100%'
+            }}
+          >
             <iframe
               key={refreshKey}
               srcDoc={generatePreviewContent()}
@@ -224,8 +286,8 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl">
             <div className="text-center mb-4">
-              <h3 className="text-lg font-semibold">QR Code for Preview</h3>
-              <p className="text-sm text-gray-600">Scan to download and open file</p>
+              <h3 className="text-lg font-semibold">Scan to Download</h3>
+              <p className="text-sm text-gray-600">File will download automatically when scanned</p>
             </div>
             {qrCodeData && (
               <img src={qrCodeData} alt="QR Code" className="mx-auto mb-4" />

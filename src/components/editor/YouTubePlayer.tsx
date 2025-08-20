@@ -23,7 +23,7 @@ export const YouTubePlayer = ({ url, onClose }: YouTubePlayerProps) => {
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
+    if (e.target === e.currentTarget || (e.target as HTMLElement).classList.contains('drag-handle')) {
       setIsDragging(true);
       setDragStart({
         x: e.clientX - position.x,
@@ -98,12 +98,12 @@ export const YouTubePlayer = ({ url, onClose }: YouTubePlayerProps) => {
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between p-2 bg-gray-800 rounded-t-lg cursor-move"
+          className="flex items-center justify-between p-2 bg-gray-800 rounded-t-lg cursor-move drag-handle"
           onMouseDown={handleMouseDown}
         >
-          <div className="flex items-center gap-2">
-            <Move className="w-4 h-4 text-white" />
-            <span className="text-white text-sm">YouTube Player</span>
+          <div className="flex items-center gap-2 drag-handle">
+            <Move className="w-4 h-4 text-white drag-handle" />
+            <span className="text-white text-sm drag-handle">YouTube Player</span>
           </div>
           
           <div className="flex items-center gap-1">
@@ -141,15 +141,18 @@ export const YouTubePlayer = ({ url, onClose }: YouTubePlayerProps) => {
         {/* Resize Handle */}
         {!isMaximized && (
           <div
-            className="absolute bottom-0 right-0 w-4 h-4 bg-gray-600 cursor-se-resize"
+            className="absolute bottom-0 right-0 w-6 h-6 bg-gray-600 cursor-se-resize flex items-center justify-center"
             onMouseDown={(e) => {
+              e.stopPropagation();
               setIsResizing(true);
               setDragStart({
                 x: e.clientX - size.width,
                 y: e.clientY - size.height
               });
             }}
-          />
+          >
+            <div className="w-2 h-2 border-r-2 border-b-2 border-white transform rotate-45"></div>
+          </div>
         )}
       </div>
     </div>
