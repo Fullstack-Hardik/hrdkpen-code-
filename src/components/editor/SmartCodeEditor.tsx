@@ -633,6 +633,31 @@ export const SmartCodeEditor = () => {
     });
   };
 
+  const createFileAtPath = (fullPath: string) => {
+    const parts = fullPath.split('/').filter(Boolean);
+    const fileName = parts.pop() || 'untitled.txt';
+    setFiles((prev) => {
+      const root = [...prev];
+      // Ensure folder chain exists
+      let nodes: FileNode[] = root;
+      for (const segment of parts) {
+        let folder = nodes.find((n) => n.type === 'folder' && n.name === segment);
+        if (!folder) {
+          folder = { id: `folder-${Date.now()}-${segment}`, name: segment, type: 'folder', children: [], isOpen: true } as FileNode;
+          nodes.push(folder);
+        }
+        nodes = folder.children || (folder.children = []);
+      }
+      nodes.push({
+        id: `file-${Date.now()}-${fileName}`,
+        name: fileName,
+        type: 'file',
+        content: '',
+        language: getLanguageFromExtension(fileName),
+      });
+      return root;
+    });
+  };
   const exportProject = async () => {
     try {
       const JSZip = (await import('jszip')).default;
@@ -667,10 +692,23 @@ export const SmartCodeEditor = () => {
     window.open('https://netlify.com', '_blank');
   };
 
+  const handleDownloadCurrent = () => {
+    const file = openTabs.find(tab => tab.id === activeTab);
+    if (!file) return;
+    const type = file.language === 'html' ? 'text/html' : file.language === 'css' ? 'text/css' : 'text/plain';
+    const blob = new Blob([file.content || ''], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-editor-bg">
       {/* Header */}
-      <SystemHeader onExport={exportProject} onPublish={publishProject} onToggleTerminal={() => setTerminalVisible(v => !v)} />
+      <SystemHeader onExport={exportProject} onPublish={publishProject} onToggleTerminal={() => setTerminalVisible(v => !v)} onDownloadCurrent={handleDownloadCurrent} />
       
       {/* Main Editor Layout */}
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -803,6 +841,10 @@ export const SmartCodeEditor = () => {
                         <Sparkles className="w-3 h-3 mr-1" />
                         AI Assistant
                       </TabsTrigger>
+                      <TabsTrigger value="youtube" className="text-xs h-6 px-3">
+                        <Youtube className="w-3 h-3 mr-1" />
+                        YouTube
+                      </TabsTrigger>
                     </TabsList>
                     
                     <Button
@@ -863,12 +905,12 @@ export const SmartCodeEditor = () => {
         {/* Bottom Terminal - persist mounted */}
         <div className="border-t border-border bg-editor-bg flex flex-col transition-all duration-200" style={{ height: terminalVisible ? '300px' : '0px', overflow: 'hidden' }}>
           <div className="flex-1 min-h-0">
-            <MultiTerminal ref={multiTerminalRef} getFileSystem={() => files} onCreateFile={(fullPath) => {
-              // Handle terminal touch command file creation
-              const pathParts = fullPath.split('/').filter(Boolean);
-              const fileName = pathParts.pop() || 'untitled.txt';
-              handleFileCreate(fileName, 'file');
-            }} />
+            <MultiTerminal 
+              ref={multiTerminalRef} 
+              getFileSystem={() => files} 
+              onCreateFile={(fullPath) => createFileAtPath(fullPath)}
+              onClose={() => setTerminalVisible(false)}
+            />
           </div>
         </div>
       </div>

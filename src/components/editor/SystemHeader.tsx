@@ -12,16 +12,18 @@ import {
   ExternalLink,
   Download,
   Globe,
-  Terminal as TerminalIcon
+  Terminal as TerminalIcon,
+  FileDown
 } from 'lucide-react';
 
 interface SystemHeaderProps {
   onExport?: () => void;
   onPublish?: () => void;
   onToggleTerminal?: () => void;
+  onDownloadCurrent?: () => void;
 }
 
-export const SystemHeader = ({ onExport, onPublish, onToggleTerminal }: SystemHeaderProps) => {
+export const SystemHeader = ({ onExport, onPublish, onToggleTerminal, onDownloadCurrent }: SystemHeaderProps) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [systemInfo, setSystemInfo] = useState({
     cpu: '45%',
@@ -133,6 +135,16 @@ export const SystemHeader = ({ onExport, onPublish, onToggleTerminal }: SystemHe
       {/* Right Section - Time and Settings */}
         <div className="flex items-center gap-4">
         <div className="hidden sm:flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={onDownloadCurrent}
+            className="text-editor-text-muted hover:text-editor-text"
+            title="Download Current File"
+          >
+            <FileDown className="w-4 h-4" />
+          </Button>
+
           <Button 
             variant="ghost" 
             size="sm"

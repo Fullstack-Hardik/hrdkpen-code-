@@ -1,13 +1,14 @@
 import { useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, X } from 'lucide-react';
 import { Terminal, TerminalHandle } from './Terminal';
 import type { FileNode } from './FileExplorer';
 
 interface MultiTerminalProps {
   getFileSystem?: () => FileNode[];
   onCreateFile?: (fullPath: string) => void;
+  onClose?: () => void;
 }
 
 export type MultiTerminalHandle = {
@@ -15,7 +16,7 @@ export type MultiTerminalHandle = {
 };
 
 export const MultiTerminal = forwardRef<MultiTerminalHandle, MultiTerminalProps>(
-  ({ getFileSystem, onCreateFile }, ref) => {
+  ({ getFileSystem, onCreateFile, onClose }, ref) => {
     const [sessions, setSessions] = useState<{ id: string; name: string }[]>([
       { id: 'term-1', name: 'Terminal 1' },
     ]);
@@ -53,6 +54,9 @@ export const MultiTerminal = forwardRef<MultiTerminalHandle, MultiTerminalProps>
           <div className="flex gap-1">
             <Button variant="ghost" size="sm" onClick={addSession} className="h-6 px-2 text-xs">
               <Plus className="w-3 h-3" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-6 px-2 text-xs" title="Close Terminal">
+              <X className="w-3 h-3" />
             </Button>
             {sessions.length > 1 && (
               <Button variant="ghost" size="sm" onClick={killActive} className="h-6 px-2 text-xs">
