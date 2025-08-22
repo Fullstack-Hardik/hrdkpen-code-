@@ -125,7 +125,6 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
   const generateQRCode = async () => {
     try {
       const content = generatePreviewContent();
-      const blob = new Blob([content], { type: 'text/html' });
       
       // Create download link that automatically downloads the file
       const downloadUrl = `data:text/html;charset=utf-8,${encodeURIComponent(content)}`;
