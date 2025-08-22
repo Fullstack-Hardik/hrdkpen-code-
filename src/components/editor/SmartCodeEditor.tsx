@@ -933,10 +933,11 @@ export const SmartCodeEditor = () => {
         <div className="fixed bottom-4 left-4 z-50">
           <Button
             onClick={() => setTerminalVisible(true)}
-            className="rounded-full h-10 w-10 p-0 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg border-2 border-white/20"
+            className="group relative rounded-full h-12 w-12 p-0 bg-gradient-to-r from-purple-600 via-blue-600 to-teal-600 hover:from-purple-700 hover:via-blue-700 hover:to-teal-700 shadow-xl border-2 border-white/30 backdrop-blur-sm transition-all duration-300 hover:scale-105"
             title="Open Terminal"
           >
-            <ChevronUp className="w-5 h-5 text-white" />
+            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-600 via-blue-600 to-teal-600 opacity-0 group-hover:opacity-20 animate-pulse"></div>
+            <ChevronUp className="w-6 h-6 text-white relative z-10" />
           </Button>
         </div>
       )}

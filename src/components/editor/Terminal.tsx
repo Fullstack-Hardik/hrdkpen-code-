@@ -79,6 +79,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCo
       } else if (command.startsWith('ts ') || command.startsWith('typescript ')) {
         const code = command.replace(/^(ts|typescript)\s+/, '');
         runJavaScript(code); // simplified TS support
+      } else if (command.startsWith('python ') || command.startsWith('py ')) {
+        const code = command.replace(/^(python|py)\s+/, '');
+        runPython(code);
       } else if (command.startsWith('node ')) {
         const filename = command.replace('node ', '').trim();
         const fileSystem = getFileSystem ? getFileSystem() : [];
@@ -220,11 +223,56 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCo
     }
   };
 
+  const runPython = async (code: string) => {
+    try {
+      addOutput('output', 'Loading Python environment...');
+      
+      // Dynamically import pyodide
+      const { loadPyodide } = await import('pyodide');
+      const pyodide = await loadPyodide();
+      
+      addOutput('success', 'Python environment ready!');
+      
+      // Capture print output
+      const printBuffer: string[] = [];
+      pyodide.runPython(`
+import sys
+from io import StringIO
+sys.stdout = StringIO()
+sys.stderr = StringIO()
+      `);
+      
+      // Run the Python code
+      try {
+        const result = pyodide.runPython(code);
+        
+        // Get captured output
+        const stdout = pyodide.runPython('sys.stdout.getvalue()');
+        const stderr = pyodide.runPython('sys.stderr.getvalue()');
+        
+        if (stdout) {
+          addOutput('output', stdout);
+        }
+        if (stderr) {
+          addOutput('error', stderr);
+        }
+        if (result !== undefined && result !== null) {
+          addOutput('success', `→ ${result}`);
+        }
+      } catch (pythonError) {
+        addOutput('error', `Python Error: ${pythonError.message}`);
+      }
+    } catch (error) {
+      addOutput('error', `Failed to load Python: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const showHelp = () => {
     const helpText = `
 Available commands:
 • js <code>        - Execute JavaScript code
 • ts <code>        - Execute TypeScript code
+• python <code>    - Execute Python code
 • node <file>      - Run JavaScript file (like VS Code)
 • touch <file>     - Create a new file
 • cat <file>       - Display file contents
@@ -238,6 +286,7 @@ Available commands:
 
 Examples:
 • js console.log("Hello World!")
+• python print("Hello from Python!")
 • node script.js
 • touch newfile.js
 • cat index.html
@@ -392,8 +441,8 @@ Examples:
       {/* Terminal Output */}
       <div 
         ref={terminalRef}
-        className="flex-1 overflow-auto p-3 bg-editor-bg font-mono text-sm"
-        style={{ userSelect: 'text' }}
+        className="flex-1 overflow-auto p-3 bg-editor-bg font-mono text-sm scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
+        style={{ userSelect: 'text', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}
       >
         {output.map((item, index) => (
           <div key={item.id} className="mb-1 flex">

@@ -382,7 +382,16 @@ export const ChatPanel = ({ getActiveContext, onYouTubePlay }: ChatPanelProps) =
                       className="h-6 px-2 text-xs"
                     >
                       <Copy className="w-3 h-3 mr-1" />
-                      Copy
+                      Copy Code
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => applyCode(m.content)}
+                      className="h-6 px-2 text-xs"
+                    >
+                      <Check className="w-3 h-3 mr-1" />
+                      Apply
                     </Button>
                     <Button
                       variant="ghost"
@@ -394,7 +403,7 @@ export const ChatPanel = ({ getActiveContext, onYouTubePlay }: ChatPanelProps) =
                       className="h-6 px-2 text-xs"
                     >
                       <RotateCcw className="w-3 h-3 mr-1" />
-                      Rewrite
+                      Edit
                     </Button>
                   </div>
                 )}

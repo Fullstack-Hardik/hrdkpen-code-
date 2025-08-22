@@ -43,6 +43,8 @@ export const MultiTerminal = forwardRef<MultiTerminalHandle, MultiTerminalProps>
         if (!handle) return;
         if (language === 'typescript' || language === 'javascript') {
           handle.runJS(code);
+        } else if (language === 'python') {
+          handle.execute(`python ${code}`);
         }
       },
     }));

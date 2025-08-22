@@ -127,10 +127,10 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
       const content = generatePreviewContent();
       const blob = new Blob([content], { type: 'text/html' });
       
-      // Create a download URL that triggers file download
-      const downloadUrl = `data:text/html;charset=utf-8,${encodeURIComponent(content)}`;
+      // Create data URL for direct download
+      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(content)}`;
       
-      const qrCodeDataUrl = await QRCode.toDataURL(downloadUrl, {
+      const qrCodeDataUrl = await QRCode.toDataURL(dataUrl, {
         width: 200,
         margin: 2,
         color: {
