@@ -41,10 +41,25 @@ export const DeviceStatus = () => {
       }
     };
 
-    // Simulate CPU usage (real CPU usage requires worker threads)
+    // Get more accurate CPU usage estimate
     const cpuInterval = setInterval(() => {
-      setCpuUsage(Math.floor(Math.random() * 100));
-    }, 2000);
+      const startTime = performance.now();
+      const iterations = 100000;
+      
+      // Simple CPU benchmark
+      let result = 0;
+      for (let i = 0; i < iterations; i++) {
+        result += Math.sqrt(i);
+      }
+      
+      const endTime = performance.now();
+      const executionTime = endTime - startTime;
+      
+      // Convert execution time to a rough CPU usage percentage
+      const baselineTime = 10; // ms for baseline
+      const usage = Math.min(Math.max((executionTime / baselineTime) * 20, 0), 100);
+      setCpuUsage(Math.round(usage));
+    }, 3000);
 
     getBatteryInfo();
 

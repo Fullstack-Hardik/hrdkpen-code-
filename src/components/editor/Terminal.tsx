@@ -10,7 +10,8 @@ import {
   Download,
   AlertCircle,
   CheckCircle,
-  XCircle
+  XCircle,
+  X
 } from 'lucide-react';
 import type { FileNode } from './FileExplorer';
 
@@ -394,6 +395,9 @@ Examples:
             <Badge variant="secondary" className="text-xs">
               {output.length} lines
             </Badge>
+            <Badge variant="outline" className="text-xs">
+              {cwd}
+            </Badge>
           </div>
           
           <div className="flex items-center gap-1">
@@ -402,6 +406,7 @@ Examples:
               size="sm"
               onClick={copyTerminalContent}
               className="h-6 px-2"
+              title="Copy Terminal Content"
             >
               <Copy className="w-3 h-3" />
             </Button>
@@ -411,6 +416,7 @@ Examples:
               size="sm"
               onClick={downloadTerminalLog}
               className="h-6 px-2"
+              title="Download Log"
             >
               <Download className="w-3 h-3" />
             </Button>
@@ -420,6 +426,7 @@ Examples:
               size="sm"
               onClick={clearTerminal}
               className="h-6 px-2"
+              title="Clear Terminal"
             >
               <Trash2 className="w-3 h-3" />
             </Button>
@@ -430,8 +437,9 @@ Examples:
                 size="sm"
                 onClick={onExit}
                 className="h-6 px-2"
+                title="Close Terminal"
               >
-                <XCircle className="w-3 h-3" />
+                <X className="w-3 h-3" />
               </Button>
             )}
           </div>
@@ -441,15 +449,21 @@ Examples:
       {/* Terminal Output */}
       <div 
         ref={terminalRef}
-        className="flex-1 overflow-auto p-3 bg-editor-bg font-mono text-sm scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200"
-        style={{ userSelect: 'text', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' }}
+        className="flex-1 overflow-y-auto overflow-x-hidden p-3 bg-editor-bg font-mono text-sm scrollbar-thin scrollbar-thumb-gray-400 scrollbar-track-gray-200 select-text"
+        style={{ 
+          userSelect: 'text', 
+          whiteSpace: 'pre-wrap', 
+          overflowWrap: 'break-word',
+          maxHeight: '100%',
+          scrollBehavior: 'smooth'
+        }}
       >
         {output.map((item, index) => (
-          <div key={item.id} className="mb-1 flex">
-            <span className="text-editor-text-muted mr-2 text-xs leading-relaxed">
+          <div key={item.id} className="mb-1 flex hover:bg-editor-panel/20 rounded px-1 group">
+            <span className="text-editor-text-muted mr-2 text-xs leading-relaxed select-none">
               {(index + 1).toString().padStart(3, '0')}
             </span>
-            <div className={`whitespace-pre-wrap flex-1 ${
+            <div className={`whitespace-pre-wrap flex-1 select-text ${
               item.type === 'input' ? 'text-editor-accent font-medium' :
               item.type === 'output' ? 'text-editor-text' :
               item.type === 'error' ? 'text-red-400' :
@@ -458,6 +472,13 @@ Examples:
             }`}>
               {item.content}
             </div>
+            <button
+              onClick={() => navigator.clipboard.writeText(item.content)}
+              className="opacity-0 group-hover:opacity-100 ml-2 p-1 hover:bg-editor-accent/20 rounded transition-opacity"
+              title="Copy line"
+            >
+              <Copy className="w-3 h-3" />
+            </button>
           </div>
         ))}
       </div>

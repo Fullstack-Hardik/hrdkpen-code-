@@ -15,7 +15,11 @@ import {
   Trash2,
   MessageSquare,
   Youtube,
-  X
+  X,
+  Edit,
+  Bug,
+  FileCode,
+  HelpCircle
 } from 'lucide-react';
 
 interface ChatPanelProps {
