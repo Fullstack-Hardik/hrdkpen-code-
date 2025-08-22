@@ -126,10 +126,11 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
     try {
       const content = generatePreviewContent();
       
-      // Create download link that automatically downloads the file
-      const downloadUrl = `data:text/html;charset=utf-8,${encodeURIComponent(content)}`;
+      // Create a simple download instruction instead of the full content
+      const fileName = activeFileName || 'preview.html';
+      const downloadInstruction = `Download ${fileName} from this preview`;
       
-      const qrCodeDataUrl = await QRCode.toDataURL(downloadUrl, {
+      const qrCodeDataUrl = await QRCode.toDataURL(downloadInstruction, {
         width: 200,
         margin: 2,
         color: {
@@ -139,6 +140,17 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
       });
       setQRCodeData(qrCodeDataUrl);
       setShowQRCode(true);
+      
+      // Automatically trigger download when QR is generated
+      const blob = new Blob([content], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Failed to generate QR code:', error);
     }

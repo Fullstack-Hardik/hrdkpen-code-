@@ -393,10 +393,13 @@ Examples:
             <TerminalIcon className="w-4 h-4 text-editor-accent" />
             <span className="text-sm font-medium text-editor-text">{name}</span>
             <Badge variant="secondary" className="text-xs">
-              {output.length} lines
+              Lines: {output.length}
             </Badge>
             <Badge variant="outline" className="text-xs">
               {cwd}
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              Status: {isExecuting ? 'Running' : 'Ready'}
             </Badge>
           </div>
           
@@ -454,7 +457,7 @@ Examples:
           userSelect: 'text', 
           whiteSpace: 'pre-wrap', 
           overflowWrap: 'break-word',
-          maxHeight: '100%',
+          maxHeight: output.length > 4 ? '400px' : 'auto',
           scrollBehavior: 'smooth'
         }}
       >

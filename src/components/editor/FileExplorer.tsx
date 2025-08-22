@@ -184,7 +184,7 @@ export const FileExplorer = ({
           </DropdownMenu>
         </div>
         
-        {file.type === 'folder' && expandedFolders.has(file.id) && file.children && (
+        {file.type === 'folder' && isExpanded && file.children && (
           <div>
             {file.children.map(child => renderFileNode(child, depth + 1))}
           </div>

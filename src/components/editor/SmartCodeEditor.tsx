@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { ChatPanel } from './ChatPanel';
 import { YouTubeSection } from './YouTubeSection';
+import { EnhancedPythonRunner } from './EnhancedPythonRunner';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 
 // Default file structure
@@ -282,6 +283,44 @@ if (typeof module !== 'undefined' && module.exports) {
 }`
       },
       {
+        id: 'hello-py',
+        name: 'hello.py',
+        type: 'file',
+        language: 'python',
+        content: `# Python Demo in Smart Code Editor
+import numpy as np
+import matplotlib.pyplot as plt
+
+print("🐍 Welcome to Python in Smart Code Editor!")
+print("Available packages: numpy, matplotlib, pandas, sympy")
+
+# Basic calculations
+x = np.linspace(0, 2 * np.pi, 100)
+y = np.sin(x)
+
+# Create a plot
+plt.figure(figsize=(10, 6))
+plt.plot(x, y, label='sin(x)', color='blue', linewidth=2)
+plt.plot(x, np.cos(x), label='cos(x)', color='red', linewidth=2)
+plt.title('Trigonometric Functions')
+plt.xlabel('x')
+plt.ylabel('y')
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.show()
+
+# Data analysis example
+data = np.random.normal(0, 1, 1000)
+print(f"Mean: {np.mean(data):.3f}")
+print(f"Standard deviation: {np.std(data):.3f}")
+
+# List comprehension
+squares = [x**2 for x in range(1, 11)]
+print(f"Squares: {squares}")
+
+print("✅ Python execution completed!")`
+      },
+      {
         id: 'readme-md',
         name: 'README.md',
         type: 'file',
@@ -297,20 +336,21 @@ Welcome to your Smart Code Editor project! This is a sample project to demonstra
 - 🤖 **AI Assistant** - Smart code analysis and error explanations
 - 🎨 **Syntax Highlighting** - Beautiful code coloring for multiple languages
 - 📁 **File Management** - Organize your project with folders and files
-- 🔧 **Built-in Terminal** - Execute JavaScript and TypeScript directly
+- 🔧 **Built-in Terminal** - Execute JavaScript, TypeScript and Python directly
+- 🐍 **Python Support** - Run Python with numpy, matplotlib, pandas, sympy
 - 🎯 **Smart Features** - Auto-save, formatting, and much more
 
 ## Getting Started
 
 1. Edit the files in the file explorer
 2. See live changes in the preview panel
-3. Use the terminal to test JavaScript code
+3. Use the terminal to test JavaScript/Python code
 4. Try the AI assistant for code help
 
 ## Keyboard Shortcuts
 
 - Ctrl/Cmd + S - Save current file
-- Ctrl/Cmd + Enter - Run JavaScript/TypeScript
+- Ctrl/Cmd + Enter - Run JavaScript/TypeScript/Python
 - F5 - Refresh live preview
 - Ctrl/Cmd + / - Toggle comments
 
@@ -320,8 +360,17 @@ Welcome to your Smart Code Editor project! This is a sample project to demonstra
 - CSS
 - JavaScript
 - TypeScript
+- Python (with scientific packages)
 - Markdown
 - JSON
+
+## Python Features
+
+- NumPy for numerical computing
+- Matplotlib for data visualization
+- Pandas for data analysis
+- SymPy for symbolic mathematics
+- Interactive plotting and data visualization
 
 Happy coding! 🎉`
       }
@@ -569,6 +618,7 @@ export const SmartCodeEditor = () => {
       case 'css': return 'css';
       case 'js': return 'javascript';
       case 'ts': return 'typescript';
+      case 'py': return 'python';
       case 'json': return 'json';
       case 'md': return 'markdown';
       case 'txt': return 'plaintext';
@@ -761,7 +811,7 @@ export const SmartCodeEditor = () => {
                     >
                       <FileText className="w-3 h-3 flex-shrink-0" />
                       <span className="text-xs truncate">{tab.name}</span>
-                      {(tab.language === 'javascript' || tab.language === 'typescript') && (
+                      {(tab.language === 'javascript' || tab.language === 'typescript' || tab.language === 'python') && (
                         <Button
                           variant="ghost"
                           size="sm"
