@@ -42,17 +42,52 @@ export const EnhancedPythonRunner = ({
     onOutput('🐍 Initializing Python environment...', 'output');
     
     try {
-      // Load Pyodide
-      const { loadPyodide } = await import('pyodide');
-      const pyodideInstance = await loadPyodide({
-        indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/',
-        stdout: (text: string) => onOutput(text, 'output'),
-        stderr: (text: string) => onOutput(text, 'error'),
-      });
+      // Try multiple CDN sources for better reliability
+      let pyodideInstance;
+      const cdnSources = [
+        'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/',
+        'https://unpkg.com/pyodide@0.25.0/dist/',
+        'https://cdn.pyodide.org/v0.25.0/full/'
+      ];
+
+      for (const indexURL of cdnSources) {
+        try {
+          onOutput(`📡 Trying to load from: ${indexURL}`, 'output');
+          const { loadPyodide } = await import('pyodide');
+          pyodideInstance = await loadPyodide({
+            indexURL,
+            stdout: (text: string) => onOutput(text, 'output'),
+            stderr: (text: string) => onOutput(text, 'error'),
+          });
+          onOutput(`✅ Successfully loaded from: ${indexURL}`, 'output');
+          break;
+        } catch (err) {
+          onOutput(`❌ Failed to load from ${indexURL}: ${err}`, 'error');
+          if (indexURL === cdnSources[cdnSources.length - 1]) {
+            throw err;
+          }
+        }
+      }
+
+      if (!pyodideInstance) {
+        throw new Error('Failed to load from all CDN sources');
+      }
 
       // Install common packages
       onOutput('📦 Installing Python packages...', 'output');
-      await pyodideInstance.loadPackage(['numpy', 'matplotlib', 'pandas', 'sympy']);
+      try {
+        await pyodideInstance.loadPackage(['numpy', 'matplotlib', 'pandas', 'sympy']);
+        onOutput('✅ All packages installed successfully', 'output');
+      } catch (err) {
+        onOutput(`⚠️ Some packages failed to install: ${err}`, 'error');
+        // Try to install essential packages only
+        try {
+          await pyodideInstance.loadPackage(['numpy']);
+          onOutput('✅ Basic NumPy package installed', 'output');
+        } catch (basicErr) {
+          onOutput(`❌ Even basic packages failed: ${basicErr}`, 'error');
+        }
+      }
       
       // Setup environment
       pyodideInstance.runPython(`

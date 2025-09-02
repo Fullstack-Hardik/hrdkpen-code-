@@ -125,12 +125,89 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
   const generateQRCode = async () => {
     try {
       const content = generatePreviewContent();
-      
-      // Create a simple download instruction instead of the full content
       const fileName = activeFileName || 'preview.html';
-      const downloadInstruction = `Download ${fileName} from this preview`;
       
-      const qrCodeDataUrl = await QRCode.toDataURL(downloadInstruction, {
+      // Create blob and download URL
+      const blob = new Blob([content], { type: 'text/html' });
+      const downloadUrl = URL.createObjectURL(blob);
+      
+      // Create a simple HTML page that will download the file
+      const downloadPageContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Download ${fileName}</title>
+          <meta charset="utf-8">
+          <style>
+            body { 
+              font-family: -apple-system, BlinkMacSystemFont, sans-serif; 
+              text-align: center; 
+              padding: 50px; 
+              background: #f5f5f5;
+            }
+            .container {
+              max-width: 400px;
+              margin: 0 auto;
+              background: white;
+              padding: 30px;
+              border-radius: 10px;
+              box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            }
+            .download-btn { 
+              background: #007bff; 
+              color: white; 
+              padding: 15px 30px; 
+              text-decoration: none; 
+              border-radius: 8px; 
+              display: inline-block; 
+              margin: 20px 0;
+              font-weight: 500;
+              transition: background 0.2s;
+            }
+            .download-btn:hover {
+              background: #0056b3;
+            }
+            .file-info {
+              background: #f8f9fa;
+              padding: 15px;
+              border-radius: 6px;
+              margin: 20px 0;
+              border-left: 4px solid #007bff;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>📁 File Ready for Download</h1>
+            <div class="file-info">
+              <strong>File:</strong> ${fileName}<br>
+              <strong>Size:</strong> ${Math.round(blob.size / 1024)} KB<br>
+              <strong>Type:</strong> HTML Document
+            </div>
+            <p>Your file is ready! Click the button below to download:</p>
+            <a href="${downloadUrl}" download="${fileName}" class="download-btn">
+              ⬇️ Download ${fileName}
+            </a>
+            <p><small>The download will start automatically in 3 seconds...</small></p>
+          </div>
+          <script>
+            // Auto download after 3 seconds
+            setTimeout(() => {
+              const link = document.createElement('a');
+              link.href = '${downloadUrl}';
+              link.download = '${fileName}';
+              link.click();
+            }, 3000);
+          </script>
+        </body>
+        </html>
+      `;
+      
+      const pageBlob = new Blob([downloadPageContent], { type: 'text/html' });
+      const pageUrl = URL.createObjectURL(pageBlob);
+      
+      // Generate QR code for the download page
+      const qrCodeDataUrl = await QRCode.toDataURL(pageUrl, {
         width: 200,
         margin: 2,
         color: {
@@ -141,16 +218,19 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
       setQRCodeData(qrCodeDataUrl);
       setShowQRCode(true);
       
-      // Automatically trigger download when QR is generated
-      const blob = new Blob([content], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
+      // Immediately download the file as well
       const a = document.createElement('a');
-      a.href = url;
+      a.href = downloadUrl;
       a.download = fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      
+      // Clean up URLs after 30 seconds
+      setTimeout(() => {
+        URL.revokeObjectURL(downloadUrl);
+        URL.revokeObjectURL(pageUrl);
+      }, 30000);
     } catch (error) {
       console.error('Failed to generate QR code:', error);
     }
@@ -282,6 +362,26 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
               title="Live Preview"
               sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
               style={{ userSelect: 'text' }}
+              onLoad={(e) => {
+                const iframe = e.target as HTMLIFrameElement;
+                if (iframe.contentDocument) {
+                  const title = iframe.contentDocument.title || activeFileName || 'Preview';
+                  // Update browser tab title
+                  document.title = `${title} - Code Editor`;
+                  
+                  // Override link clicks to prevent navigation
+                  iframe.contentDocument.addEventListener('click', (event) => {
+                    const target = event.target as HTMLElement;
+                    if (target.tagName === 'A') {
+                      event.preventDefault();
+                      const href = (target as HTMLAnchorElement).href;
+                      if (href && !href.startsWith('javascript:') && !href.startsWith('#')) {
+                        window.open(href, '_blank');
+                      }
+                    }
+                  });
+                }
+              }}
             />
           </div>
         ) : (

@@ -87,8 +87,20 @@ export const FileExplorer = ({
         return <i className={`fab fa-js-square ${iconClass} text-yellow-500`} />;
       case 'ts':
         return <i className={`fas fa-code ${iconClass} text-blue-600`} />;
+      case 'tsx':
+        return <i className={`fas fa-code ${iconClass} text-cyan-500`} />;
+      case 'jsx':
+        return <i className={`fas fa-code ${iconClass} text-cyan-400`} />;
       case 'json':
         return <i className={`fas fa-brackets-curly ${iconClass} text-green-500`} />;
+      case 'py':
+        return <i className={`fab fa-python ${iconClass} text-green-600`} />;
+      case 'png':
+      case 'jpg':
+      case 'jpeg':
+      case 'gif':
+      case 'svg':
+        return <i className={`fas fa-image ${iconClass} text-purple-500`} />;
       default:
         return <FileText className={`${iconClass} text-editor-text-muted`} />;
     }
