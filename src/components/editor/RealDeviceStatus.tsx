@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Battery, Clock, Wifi, Signal } from 'lucide-react';
+import { Battery, Clock, Wifi, Signal, WifiOff } from 'lucide-react';
 
 interface BatteryInfo {
   level: number;
@@ -160,53 +160,57 @@ export const RealDeviceStatus = () => {
   };
 
   return (
-    <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 px-3 py-1.5 border-b border-gray-200 dark:border-gray-700">
-      {/* Time */}
-      <div className="flex items-center gap-1.5 font-mono">
-        <Clock className="w-3.5 h-3.5" />
-        <span className="font-medium">{formatTime(time)}</span>
-      </div>
+    <div className="flex items-center justify-between px-4 py-2 bg-editor-header border-b border-editor-border text-editor-text-muted">
+      <div className="flex items-center gap-6 text-sm">
+        {/* Time */}
+        <div className="flex items-center gap-2 font-mono">
+          <Clock className="w-4 h-4 text-editor-accent" />
+          <span className="font-medium text-editor-text">{formatTime(time)}</span>
+        </div>
 
-      {/* Battery */}
-      {battery && (
-        <div className="flex items-center gap-1.5">
-          <Battery 
-            className={`w-3.5 h-3.5 ${getBatteryColor(battery.level, battery.charging)}`}
-            fill={battery.charging ? 'currentColor' : 'none'}
-          />
-          <span className={`font-medium ${getBatteryColor(battery.level, battery.charging)}`}>
-            {battery.level}%
-          </span>
-          {battery.charging && (
-            <span className="text-green-500 text-xs">⚡</span>
+        {/* Battery */}
+        {battery && (
+          <div className="flex items-center gap-2">
+            <Battery 
+              className={`w-4 h-4 ${getBatteryColor(battery.level, battery.charging)}`}
+              fill={battery.charging ? 'currentColor' : 'none'}
+            />
+            <span className={`font-medium ${getBatteryColor(battery.level, battery.charging)}`}>
+              {battery.level}%
+            </span>
+            {battery.charging && (
+              <span className="text-green-400 text-sm ml-1">⚡</span>
+            )}
+          </div>
+        )}
+
+        {/* Network */}
+        <div className="flex items-center gap-2">
+          {network.online ? (
+            <Wifi className="w-4 h-4 text-green-400" />
+          ) : (
+            <WifiOff className="w-4 h-4 text-red-400" />
           )}
-          {battery.dischargingTime && battery.dischargingTime !== Infinity && (
-            <span className="text-xs text-gray-500">
-              {Math.floor(battery.dischargingTime / 3600)}h left
+          <span className={`font-medium ${network.online ? 'text-green-400' : 'text-red-400'}`}>
+            {network.online ? getNetworkSpeed() : 'Offline'}
+          </span>
+          {getNetworkLatency() && (
+            <span className="text-xs text-editor-text-dim">
+              {getNetworkLatency()}
             </span>
           )}
         </div>
-      )}
-
-      {/* Network */}
-      <div className="flex items-center gap-1.5">
-        {getNetworkIcon()}
-        <span className={`font-medium ${network.online ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-          {getNetworkSpeed()}
-        </span>
-        {getNetworkLatency() && (
-          <span className="text-xs text-gray-500">
-            ({getNetworkLatency()})
-          </span>
-        )}
       </div>
 
-      {/* System Info */}
-      <div className="flex items-center gap-1.5 text-xs">
-        <span className="text-gray-500">
-          {navigator.platform} • {navigator.userAgent.includes('Chrome') ? 'Chrome' : 
-           navigator.userAgent.includes('Firefox') ? 'Firefox' : 
-           navigator.userAgent.includes('Safari') ? 'Safari' : 'Browser'}
+      {/* Right side info */}
+      <div className="flex items-center gap-4 text-xs text-editor-text-dim">
+        <span>
+          CodeSpace Pro v1.0
+        </span>
+        <span>
+          {navigator.userAgent.includes('Chrome') ? '🌐 Chrome' : 
+           navigator.userAgent.includes('Firefox') ? '🦊 Firefox' : 
+           navigator.userAgent.includes('Safari') ? '🧭 Safari' : '🌐 Browser'}
         </span>
       </div>
     </div>
