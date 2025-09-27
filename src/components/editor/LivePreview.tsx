@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { DefaultPreview } from './DefaultPreview';
 import { 
   Monitor, 
   RefreshCw, 
@@ -21,9 +22,10 @@ interface LivePreviewProps {
   cssContent: string;
   jsContent: string;
   activeFileName?: string;
+  files?: any[];
 }
 
-export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName }: LivePreviewProps) => {
+export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName, files = [] }: LivePreviewProps) => {
   const [isVisible, setIsVisible] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showQRCode, setShowQRCode] = useState(false);
@@ -347,43 +349,47 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
       {/* Preview Content */}
       <div className="flex-1 flex items-center justify-center p-4 overflow-auto" style={{ userSelect: 'text' }}>
         {isVisible ? (
-          <div 
-            className="border border-border rounded-lg overflow-hidden shadow-lg bg-white mx-auto"
-            style={{
-              ...getPreviewDimensions(),
-              maxWidth: '100%',
-              maxHeight: '100%'
-            }}
-          >
-            <iframe
-              key={refreshKey}
-              srcDoc={generatePreviewContent()}
-              className="w-full h-full"
-              title="Live Preview"
-              sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
-              style={{ userSelect: 'text' }}
-              onLoad={(e) => {
-                const iframe = e.target as HTMLIFrameElement;
-                if (iframe.contentDocument) {
-                  const title = iframe.contentDocument.title || activeFileName || 'Preview';
-                  // Update browser tab title
-                  document.title = `${title} - Code Editor`;
-                  
-                  // Override link clicks to prevent navigation
-                  iframe.contentDocument.addEventListener('click', (event) => {
-                    const target = event.target as HTMLElement;
-                    if (target.tagName === 'A') {
-                      event.preventDefault();
-                      const href = (target as HTMLAnchorElement).href;
-                      if (href && !href.startsWith('javascript:') && !href.startsWith('#')) {
-                        window.open(href, '_blank');
-                      }
-                    }
-                  });
-                }
+          files.length > 0 ? (
+            <div 
+              className="border border-border rounded-lg overflow-hidden shadow-lg bg-white mx-auto"
+              style={{
+                ...getPreviewDimensions(),
+                maxWidth: '100%',
+                maxHeight: '100%'
               }}
-            />
-          </div>
+            >
+              <iframe
+                key={refreshKey}
+                srcDoc={generatePreviewContent()}
+                className="w-full h-full"
+                title="Live Preview"
+                sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
+                style={{ userSelect: 'text' }}
+                onLoad={(e) => {
+                  const iframe = e.target as HTMLIFrameElement;
+                  if (iframe.contentDocument) {
+                    const title = iframe.contentDocument.title || activeFileName || 'Preview';
+                    // Update browser tab title
+                    document.title = `${title} - Code Editor`;
+                    
+                    // Override link clicks to prevent navigation
+                    iframe.contentDocument.addEventListener('click', (event) => {
+                      const target = event.target as HTMLElement;
+                      if (target.tagName === 'A') {
+                        event.preventDefault();
+                        const href = (target as HTMLAnchorElement).href;
+                        if (href && !href.startsWith('javascript:') && !href.startsWith('#')) {
+                          window.open(href, '_blank');
+                        }
+                      }
+                    });
+                  }
+                }}
+              />
+            </div>
+          ) : (
+            <DefaultPreview />
+          )
         ) : (
           <div className="text-center text-editor-text-muted">
             <EyeOff className="w-12 h-12 mx-auto mb-4 opacity-50" />

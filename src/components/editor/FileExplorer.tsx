@@ -10,7 +10,8 @@ import {
   MoreHorizontal,
   Trash2,
   Edit3,
-  Upload
+  Upload,
+  Play
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -38,6 +39,7 @@ interface FileExplorerProps {
   selectedFileId?: string;
   onImportFolder?: (files: { path: string; content: string }[]) => void;
   onMove?: (dragId: string, targetFolderId: string | null) => void;
+  onExecuteCode?: (code: string, language: string) => void;
 }
 
 export const FileExplorer = ({ 
@@ -49,6 +51,7 @@ export const FileExplorer = ({
   selectedFileId, 
   onImportFolder,
   onMove,
+  onExecuteCode,
 }: FileExplorerProps) => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -106,6 +109,11 @@ export const FileExplorer = ({
     }
   };
 
+  const canRunFile = (file: FileNode): boolean => {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    return ['js', 'jsx', 'ts', 'tsx', 'py', 'python'].includes(ext || '');
+  };
+
   const startEdit = (file: FileNode) => {
     setEditingId(file.id);
     setEditingName(file.name);
@@ -144,9 +152,14 @@ export const FileExplorer = ({
             e.dataTransfer.setData('text/file-id', file.id);
           }}
           onDragOver={(e) => {
-            if (file.type === 'folder') e.preventDefault();
+            if (file.type === 'folder') {
+              e.preventDefault();
+              e.stopPropagation();
+            }
           }}
           onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
             const dragId = e.dataTransfer.getData('text/file-id');
             if (!dragId) return;
             if (file.type === 'folder') onMove?.(dragId, file.id);
@@ -170,30 +183,55 @@ export const FileExplorer = ({
             <span className="flex-1 text-sm">{file.name}</span>
           )}
           
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="opacity-0 group-hover:opacity-100 h-6 w-6 p-0"
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+            {/* Run button for executable files */}
+            {canRunFile(file) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (file.content) {
+                    const ext = file.name.split('.').pop()?.toLowerCase();
+                    if (ext === 'py' || ext === 'python') {
+                      onExecuteCode?.(file.content, 'python');
+                    } else {
+                      onExecuteCode?.(file.content, 'javascript');
+                    }
+                  }
+                }}
+                className="h-6 w-6 p-0 hover:bg-green-500/20 text-green-600"
+                title="Run Code"
               >
-                <MoreHorizontal className="w-3 h-3" />
+                <Play className="w-3 h-3" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-40">
-              <DropdownMenuItem onClick={() => startEdit(file)}>
-                <Edit3 className="w-3 h-3 mr-2" />
-                Rename
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={() => onFileDelete(file.id)}
-                className="text-editor-error"
-              >
-                <Trash2 className="w-3 h-3 mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            )}
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 w-6 p-0"
+                >
+                  <MoreHorizontal className="w-3 h-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-40">
+                <DropdownMenuItem onClick={() => startEdit(file)}>
+                  <Edit3 className="w-3 h-3 mr-2" />
+                  Rename
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={() => onFileDelete(file.id)}
+                  className="text-editor-error"
+                >
+                  <Trash2 className="w-3 h-3 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
         
         {file.type === 'folder' && isExpanded && file.children && (

@@ -228,11 +228,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCo
     try {
       addOutput('output', 'Loading Python environment...');
       
-      // Dynamically import pyodide
-      const { loadPyodide } = await import('pyodide');
-      const pyodide = await loadPyodide();
-      
-      addOutput('success', 'Python environment ready!');
+      // Dynamically import pyodide with proper error handling
+      try {
+        const { loadPyodide } = await import('pyodide');
+        const pyodide = await loadPyodide({
+          indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/"
+        });
+        
+        addOutput('success', 'Python environment ready!');
       
       // Capture print output
       const printBuffer: string[] = [];
@@ -260,11 +263,16 @@ sys.stderr = StringIO()
         if (result !== undefined && result !== null) {
           addOutput('success', `→ ${result}`);
         }
-      } catch (pythonError) {
-        addOutput('error', `Python Error: ${pythonError.message}`);
+        } catch (pythonError) {
+          addOutput('error', `Python Error: ${pythonError.message || pythonError}`);
+        }
+      } catch (loadError) {
+        addOutput('error', `Failed to load Python environment: ${loadError.message || loadError}`);
+        addOutput('error', 'Python support requires a modern browser with WebAssembly support.');
       }
     } catch (error) {
-      addOutput('error', `Failed to load Python: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      addOutput('error', `Critical Python Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      addOutput('error', 'Try refreshing the page or use a different browser.');
     }
   };
 
