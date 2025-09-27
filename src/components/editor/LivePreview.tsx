@@ -1,7 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DefaultPreview } from './DefaultPreview';
 import { 
   Monitor, 
   RefreshCw, 
@@ -22,15 +21,23 @@ interface LivePreviewProps {
   cssContent: string;
   jsContent: string;
   activeFileName?: string;
-  files?: any[];
 }
 
-export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName, files = [] }: LivePreviewProps) => {
+export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName }: LivePreviewProps) => {
   const [isVisible, setIsVisible] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [showQRCode, setShowQRCode] = useState(false);
   const [qrCodeData, setQRCodeData] = useState('');
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+
+  // Auto-refresh when content changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setRefreshKey(prev => prev + 1);
+    }, 500); // Debounce updates
+    
+    return () => clearTimeout(timeoutId);
+  }, [htmlContent, cssContent, jsContent]);
 
   const generatePreviewContent = () => {
     return `
@@ -349,7 +356,7 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
       {/* Preview Content */}
       <div className="flex-1 flex items-center justify-center p-4 overflow-auto" style={{ userSelect: 'text' }}>
         {isVisible ? (
-          files.length > 0 ? (
+          (htmlContent.trim() || cssContent.trim() || jsContent.trim()) ? (
             <div 
               className="border border-border rounded-lg overflow-hidden shadow-lg bg-white mx-auto"
               style={{
@@ -370,7 +377,7 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
                   if (iframe.contentDocument) {
                     const title = iframe.contentDocument.title || activeFileName || 'Preview';
                     // Update browser tab title
-                    document.title = `${title} - Code Editor`;
+                    document.title = `${title} - HardkPen Code Editor`;
                     
                     // Override link clicks to prevent navigation
                     iframe.contentDocument.addEventListener('click', (event) => {
@@ -388,7 +395,18 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
               />
             </div>
           ) : (
-            <DefaultPreview />
+            <div className="text-center text-editor-text-muted max-w-md">
+              <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-br from-primary/10 to-accent/10 rounded-full flex items-center justify-center">
+                <span className="text-4xl">💻</span>
+              </div>
+              <h3 className="text-lg font-semibold mb-2">Start Coding</h3>
+              <p className="text-sm mb-4">Create a new file or write some code to see the live preview</p>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p>• HTML for structure</p>
+                <p>• CSS for styling</p> 
+                <p>• JavaScript for interactivity</p>
+              </div>
+            </div>
           )
         ) : (
           <div className="text-center text-editor-text-muted">

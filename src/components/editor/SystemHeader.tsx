@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { SettingsModal } from './SettingsModal';
 import { 
   Cpu, 
   HardDrive, 
@@ -181,9 +182,7 @@ export const SystemHeader = ({ onExport, onPublish, onToggleTerminal, onDownload
           </span>
         </div>
         
-        <Button variant="ghost" size="sm" className="text-editor-text-muted hover:text-editor-text">
-          <Settings className="w-4 h-4" />
-        </Button>
+        <SettingsModal />
       </div>
     </header>
   );
