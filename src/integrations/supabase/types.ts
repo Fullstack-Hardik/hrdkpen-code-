@@ -14,7 +14,121 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      collaboration_rooms: {
+        Row: {
+          created_at: string
+          host_id: string | null
+          id: string
+          is_active: boolean | null
+          name: string | null
+          room_code: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          host_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string | null
+          room_code: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          host_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string | null
+          room_code?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      file_changes: {
+        Row: {
+          change_type: string
+          content: string | null
+          created_at: string
+          description: string | null
+          file_path: string
+          id: string
+          room_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          change_type: string
+          content?: string | null
+          created_at?: string
+          description?: string | null
+          file_path: string
+          id?: string
+          room_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          change_type?: string
+          content?: string | null
+          created_at?: string
+          description?: string | null
+          file_path?: string
+          id?: string
+          room_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "file_changes_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "collaboration_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      room_members: {
+        Row: {
+          display_name: string
+          id: string
+          is_online: boolean | null
+          joined_at: string
+          last_seen: string
+          permissions: Json | null
+          role: string
+          room_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          display_name: string
+          id?: string
+          is_online?: boolean | null
+          joined_at?: string
+          last_seen?: string
+          permissions?: Json | null
+          role: string
+          room_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          display_name?: string
+          id?: string
+          is_online?: boolean | null
+          joined_at?: string
+          last_seen?: string
+          permissions?: Json | null
+          role?: string
+          room_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "room_members_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "collaboration_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
