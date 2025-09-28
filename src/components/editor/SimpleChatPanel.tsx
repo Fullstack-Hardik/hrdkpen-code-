@@ -117,7 +117,16 @@ export const SimpleChatPanel = ({ getActiveContext, onYouTubePlay, onOpenSetting
           ]
         })
       });
+      
+      if (!res.ok) {
+        throw new Error(`API Error: ${res.status} ${res.statusText}`);
+      }
+      
       const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error.message || 'API returned an error');
+      }
       const content = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response received.';
       const assistantMsg: Message = { 
         id: Date.now() + '-b', 
