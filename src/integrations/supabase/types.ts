@@ -44,6 +44,41 @@ export type Database = {
         }
         Relationships: []
       }
+      connection_notifications: {
+        Row: {
+          created_at: string
+          id: string
+          message: string | null
+          notification_type: string
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          notification_type: string
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          notification_type?: string
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "connection_notifications_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "collaboration_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       file_changes: {
         Row: {
           change_type: string
@@ -85,6 +120,74 @@ export type Database = {
           },
         ]
       }
+      local_saves: {
+        Row: {
+          content: string
+          created_at: string
+          file_path: string
+          id: string
+          is_auto_save: boolean | null
+          room_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          file_path: string
+          id?: string
+          is_auto_save?: boolean | null
+          room_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          file_path?: string
+          id?: string
+          is_auto_save?: boolean | null
+          room_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "local_saves_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "collaboration_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          role: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          role?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          role?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       room_members: {
         Row: {
           display_name: string
@@ -122,6 +225,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "room_members_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "collaboration_rooms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_chat: {
+        Row: {
+          created_at: string
+          id: string
+          message: string
+          message_type: string | null
+          room_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message: string
+          message_type?: string | null
+          room_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string
+          message_type?: string | null
+          room_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_chat_room_id_fkey"
             columns: ["room_id"]
             isOneToOne: false
             referencedRelation: "collaboration_rooms"
