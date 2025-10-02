@@ -3,35 +3,25 @@ import { SystemHeader } from './SystemHeader';
 import { FileExplorer, FileNode } from './FileExplorer';
 import { CodeEditor } from './CodeEditor';
 import { LivePreview } from './LivePreview';
-import { Terminal } from './Terminal';
 import { MultiTerminal, MultiTerminalHandle } from './MultiTerminal';
 import { YouTubePlayer } from './YouTubePlayer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { EnhancedAIAssistant } from './EnhancedAIAssistant';
+import { FindInFiles } from './FindInFiles';
+import { StatusBar } from './StatusBar';
+import { TeamChatPanel } from './TeamChatPanel';
 import { 
-  PanelBottomOpen, 
-  PanelBottomClose, 
   SidebarOpen, 
   SidebarClose,
   FileText,
   X,
   Monitor,
-  Smartphone,
-  Tablet,
-  Laptop,
   ChevronUp,
-  ChevronDown,
   Sparkles,
-  Play,
-  Upload,
-  Download,
-  Globe,
   Youtube
 } from 'lucide-react';
-import { ChatPanel } from './ChatPanel';
 import { YouTubeSection } from './YouTubeSection';
-import { EnhancedPythonRunner } from './EnhancedPythonRunner';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
 
 // Default empty file structure
@@ -48,6 +38,8 @@ export const SmartCodeEditor = () => {
   const [activeRightTab, setActiveRightTab] = useState('preview');
   const [showYouTube, setShowYouTube] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [showFind, setShowFind] = useState(false);
+  const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const multiTerminalRef = useRef<MultiTerminalHandle>(null);
 
   // Auto-save functionality
@@ -398,6 +390,15 @@ export const SmartCodeEditor = () => {
     window.open('https://netlify.com', '_blank');
   };
 
+  const handleFindResultClick = (fileId: string, line: number) => {
+    const file = findFileById(files, fileId);
+    if (file) {
+      handleFileSelect(file);
+      setCursorPosition({ line, column: 1 });
+      setShowFind(false);
+    }
+  };
+
   const handleDownloadCurrent = () => {
     const file = openTabs.find(tab => tab.id === activeTab);
     if (!file) return;
@@ -414,7 +415,13 @@ export const SmartCodeEditor = () => {
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-editor-bg">
       {/* Header */}
-      <SystemHeader onExport={exportProject} onPublish={publishProject} onToggleTerminal={() => setTerminalVisible(v => !v)} onDownloadCurrent={handleDownloadCurrent} />
+      <SystemHeader 
+        onExport={exportProject} 
+        onPublish={publishProject} 
+        onToggleTerminal={() => setTerminalVisible(v => !v)} 
+        onDownloadCurrent={handleDownloadCurrent}
+        onToggleFind={() => setShowFind(v => !v)}
+      />
       
       {/* Main Editor Layout */}
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -573,32 +580,79 @@ export const SmartCodeEditor = () => {
                     />
                   </TabsContent>
                   
-                  <TabsContent value="ai" className="flex-1 m-0">
-                    <ChatPanel 
+                   <TabsContent value="ai" className="flex-1 m-0">
+                    <EnhancedAIAssistant 
                       getActiveContext={() => {
                         const activeFile = openTabs.find(tab => tab.id === activeTab);
+                        const allFilesMap: Record<string, string> = {};
+                        const collectFiles = (fileList: FileNode[]) => {
+                          fileList.forEach(file => {
+                            if (file.type === 'file') {
+                              allFilesMap[file.name] = file.content || '';
+                            }
+                            if (file.children) {
+                              collectFiles(file.children);
+                            }
+                          });
+                        };
+                        collectFiles(files);
                         return {
                           fileName: activeFile?.name,
-                          code: activeFile?.content
+                          code: activeFile?.content,
+                          allFiles: allFilesMap
                         };
                       }}
-                      onYouTubePlay={(url) => {
-                        setYoutubeUrl(url);
-                        setShowYouTube(true);
+                      onFileCreate={(fileName, content) => {
+                        handleFileCreate(fileName, 'file');
+                        const newFile = findFileById(files, `file-${Date.now()}`);
+                        if (newFile) updateFileContent(newFile.id, content);
+                      }}
+                      onFileUpdate={(fileName, content) => {
+                        const file = files.find(f => f.name === fileName);
+                        if (file) updateFileContent(file.id, content);
+                      }}
+                      onFileDelete={(fileName) => {
+                        const file = files.find(f => f.name === fileName);
+                        if (file) handleFileDelete(file.id);
+                      }}
+                      onFileRead={(fileName) => {
+                        const file = files.find(f => f.name === fileName);
+                        return file?.content;
                       }}
                     />
                   </TabsContent>
                   
                   <TabsContent value="youtube" className="flex-1 m-0">
-                    <YouTubeSection 
-                      onPlayVideo={(url) => {
-                        setYoutubeUrl(url);
-                        setShowYouTube(true);
-                      }}
-                    />
+                    <div className="flex h-full">
+                      <div className="flex-1 border-r border-border">
+                        <YouTubeSection 
+                          onPlayVideo={(url) => {
+                            setYoutubeUrl(url);
+                            setShowYouTube(true);
+                          }}
+                        />
+                      </div>
+                      <div className="w-80">
+                        <TeamChatPanel />
+                      </div>
+                    </div>
                   </TabsContent>
                 </Tabs>
               </ResizablePanel>
+              
+              {/* Find Panel */}
+              {showFind && (
+                <>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
+                    <FindInFiles
+                      files={files}
+                      onResultClick={handleFindResultClick}
+                      onClose={() => setShowFind(false)}
+                    />
+                  </ResizablePanel>
+                </>
+              )}
             </>
           )}
         </ResizablePanelGroup>
@@ -619,6 +673,16 @@ export const SmartCodeEditor = () => {
             />
           </div>
         </div>
+        
+        {/* Status Bar */}
+        <StatusBar
+          activeFile={activeFile}
+          cursorPosition={cursorPosition}
+          totalLines={activeFile?.content?.split('\n').length || 0}
+          errors={0}
+          warnings={0}
+          onHostClick={() => window.open('https://getlivenow.lovable.app', '_blank')}
+        />
       </div>
       
       {/* Toggle Buttons */}

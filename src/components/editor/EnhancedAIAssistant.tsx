@@ -86,6 +86,7 @@ export const EnhancedAIAssistant = ({
   });
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -250,7 +251,7 @@ export const Button = () => {
 
 Be helpful, provide explanations, and suggest best practices.`;
 
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -261,7 +262,7 @@ Be helpful, provide explanations, and suggest best practices.`;
             temperature: 0.7,
             topK: 40,
             topP: 0.95,
-            maxOutputTokens: 2048,
+            maxOutputTokens: 8192,
           }
         })
       });
@@ -346,53 +347,61 @@ Be helpful, provide explanations, and suggest best practices.`;
   };
 
   return (
-    <div className="flex flex-col h-full bg-editor-panel">
-      {/* Header */}
-      <div className="flex items-center justify-between p-3 border-b border-border bg-editor-sidebar">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center">
-            <Brain className="w-4 h-4 text-white" />
+    <div className="flex flex-col h-full bg-gradient-to-br from-purple-950/30 via-editor-panel to-blue-950/30">
+      {/* Modern Header */}
+      <div className="flex items-center justify-between p-4 border-b border-purple-500/30 bg-gradient-to-r from-purple-900/50 to-blue-900/50 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/50">
+              <Brain className="w-5 h-5 text-white" />
+            </div>
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-editor-panel animate-pulse"></div>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-editor-text">Enhanced AI Assistant</h3>
-            <p className="text-xs text-editor-text-muted">File management & code analysis</p>
+            <h3 className="text-base font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+              AI Copilot
+            </h3>
+            <p className="text-xs text-purple-300/70">Powered by Gemini 2.5 Flash</p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
             onClick={clearChat}
-            className="h-7 px-2"
+            className="h-8 px-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30"
             title="Clear Chat"
           >
-            <Trash2 className="w-3 h-3" />
+            <Trash2 className="w-4 h-4 mr-1" />
+            Clear
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            onClick={onOpenSettings}
-            className="h-7 px-2"
+            onClick={() => setShowSettings(!showSettings)}
+            className="h-8 px-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30"
             title="Settings"
           >
-            <Settings className="w-3 h-3" />
+            <Settings className="w-4 h-4" />
           </Button>
         </div>
       </div>
 
       {/* API Key Input */}
-      <div className="p-2 border-b border-border bg-editor-sidebar/50">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-3 h-3 text-editor-accent" />
-          <input
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Enter Gemini API Key"
-            className="flex-1 h-6 rounded bg-editor-panel border border-editor-border px-2 text-xs text-editor-text placeholder:text-editor-text-muted"
-            type="password"
-          />
+      {showSettings && (
+        <div className="p-3 border-b border-purple-500/20 bg-purple-900/20">
+          <div className="flex items-center gap-3">
+            <Sparkles className="w-4 h-4 text-yellow-400" />
+            <input
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Enter Gemini API Key (Get from ai.google.dev)"
+              className="flex-1 h-9 rounded-lg bg-editor-panel/50 border border-purple-500/30 px-3 text-sm text-editor-text placeholder:text-editor-text-muted focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20"
+              type="password"
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Quick Actions */}
       <div className="p-2 border-b border-border bg-editor-sidebar/30">
