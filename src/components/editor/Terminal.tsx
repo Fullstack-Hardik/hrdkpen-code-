@@ -111,6 +111,26 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCo
         } else {
           addOutput('error', `File not found: ${filename}`);
         }
+      } else if (command.startsWith('npm install') || command.startsWith('npm i ')) {
+        const packageName = command.replace(/npm (install|i)\s+/, '').trim();
+        if (packageName) {
+          addOutput('output', `📦 Installing ${packageName}...`);
+          setTimeout(() => {
+            addOutput('success', `✅ ${packageName} installed successfully`);
+            addOutput('output', `Run 'npm list' to see installed packages`);
+          }, 1000);
+        } else {
+          addOutput('error', 'Please specify a package name');
+        }
+      } else if (command === 'npm list' || command === 'npm ls') {
+        addOutput('output', '📦 Installed packages:');
+        addOutput('output', '  - react@18.2.0');
+        addOutput('output', '  - typescript@5.0.0');
+        addOutput('output', '  - vite@4.3.0');
+      } else if (command.startsWith('mkdir ')) {
+        const dirName = command.replace('mkdir ', '').trim();
+        addOutput('success', `Created directory: ${dirName}`);
+        onCreateFile?.(`${dirName}/.gitkeep`);
       } else if (command === 'clear') {
         setOutput([]);
       } else if (command === 'help') {

@@ -45,9 +45,9 @@ export const EnhancedPythonRunner = ({
       // Try multiple CDN sources for better reliability
       let pyodideInstance;
       const cdnSources = [
-        'https://cdn.jsdelivr.net/pyodide/v0.25.0/full/',
-        'https://unpkg.com/pyodide@0.25.0/dist/',
-        'https://cdn.pyodide.org/v0.25.0/full/'
+        'https://cdn.jsdelivr.net/pyodide/v0.28.2/full/',
+        'https://unpkg.com/pyodide@0.28.2/dist/',
+        'https://cdn.pyodide.org/v0.28.2/full/'
       ];
 
       for (const indexURL of cdnSources) {

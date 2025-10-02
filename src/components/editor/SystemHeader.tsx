@@ -80,16 +80,6 @@ export const SystemHeader = ({
             Excalidraw
             <ExternalLink className="w-3 h-3 ml-1" />
           </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => openExternalLink('https://google.com')}
-            className="text-editor-text-muted hover:text-editor-text hover:bg-editor-panel/50"
-          >
-            <Search className="w-3 h-3 mr-1" />
-            Search
-          </Button>
         </div>
       </div>
 

@@ -7,13 +7,11 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
-  QrCode,
   Smartphone,
   Tablet,
   Laptop,
   Download
 } from 'lucide-react';
-import QRCode from 'qrcode';
 import JSZip from 'jszip';
 
 interface LivePreviewProps {
@@ -26,8 +24,6 @@ interface LivePreviewProps {
 export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName }: LivePreviewProps) => {
   const [isVisible, setIsVisible] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [showQRCode, setShowQRCode] = useState(false);
-  const [qrCodeData, setQRCodeData] = useState('');
   const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
 
   // Auto-refresh when content changes
@@ -131,120 +127,6 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
     }
   };
 
-  const generateQRCode = async () => {
-    try {
-      const content = generatePreviewContent();
-      const fileName = activeFileName || 'preview.html';
-      
-      // Create blob and download URL
-      const blob = new Blob([content], { type: 'text/html' });
-      const downloadUrl = URL.createObjectURL(blob);
-      
-      // Create a simple HTML page that will download the file
-      const downloadPageContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Download ${fileName}</title>
-          <meta charset="utf-8">
-          <style>
-            body { 
-              font-family: -apple-system, BlinkMacSystemFont, sans-serif; 
-              text-align: center; 
-              padding: 50px; 
-              background: #f5f5f5;
-            }
-            .container {
-              max-width: 400px;
-              margin: 0 auto;
-              background: white;
-              padding: 30px;
-              border-radius: 10px;
-              box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            }
-            .download-btn { 
-              background: #007bff; 
-              color: white; 
-              padding: 15px 30px; 
-              text-decoration: none; 
-              border-radius: 8px; 
-              display: inline-block; 
-              margin: 20px 0;
-              font-weight: 500;
-              transition: background 0.2s;
-            }
-            .download-btn:hover {
-              background: #0056b3;
-            }
-            .file-info {
-              background: #f8f9fa;
-              padding: 15px;
-              border-radius: 6px;
-              margin: 20px 0;
-              border-left: 4px solid #007bff;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1>📁 File Ready for Download</h1>
-            <div class="file-info">
-              <strong>File:</strong> ${fileName}<br>
-              <strong>Size:</strong> ${Math.round(blob.size / 1024)} KB<br>
-              <strong>Type:</strong> HTML Document
-            </div>
-            <p>Your file is ready! Click the button below to download:</p>
-            <a href="${downloadUrl}" download="${fileName}" class="download-btn">
-              ⬇️ Download ${fileName}
-            </a>
-            <p><small>The download will start automatically in 3 seconds...</small></p>
-          </div>
-          <script>
-            // Auto download after 3 seconds
-            setTimeout(() => {
-              const link = document.createElement('a');
-              link.href = '${downloadUrl}';
-              link.download = '${fileName}';
-              link.click();
-            }, 3000);
-          </script>
-        </body>
-        </html>
-      `;
-      
-      const pageBlob = new Blob([downloadPageContent], { type: 'text/html' });
-      const pageUrl = URL.createObjectURL(pageBlob);
-      
-      // Generate QR code for the download page
-      const qrCodeDataUrl = await QRCode.toDataURL(pageUrl, {
-        width: 200,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#ffffff',
-        },
-      });
-      setQRCodeData(qrCodeDataUrl);
-      setShowQRCode(true);
-      
-      // Immediately download the file as well
-      const a = document.createElement('a');
-      a.href = downloadUrl;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      
-      // Clean up URLs after 30 seconds
-      setTimeout(() => {
-        URL.revokeObjectURL(downloadUrl);
-        URL.revokeObjectURL(pageUrl);
-      }, 30000);
-    } catch (error) {
-      console.error('Failed to generate QR code:', error);
-    }
-  };
-
   const getPreviewDimensions = () => {
     switch (previewMode) {
       case 'mobile':
@@ -309,16 +191,6 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
             title="Toggle Visibility"
           >
             {isVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={generateQRCode}
-            className="h-7 px-2"
-            title="Generate QR Code"
-          >
-            <QrCode className="w-3 h-3" />
           </Button>
           
           <Button 
@@ -415,24 +287,6 @@ export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName
           </div>
         )}
       </div>
-
-      {/* QR Code Modal */}
-      {showQRCode && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl">
-            <div className="text-center mb-4">
-              <h3 className="text-lg font-semibold">Scan to Download</h3>
-              <p className="text-sm text-gray-600">File will download automatically when scanned</p>
-            </div>
-            {qrCodeData && (
-              <img src={qrCodeData} alt="QR Code" className="mx-auto mb-4" />
-            )}
-            <Button onClick={() => setShowQRCode(false)} className="w-full">
-              Close
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

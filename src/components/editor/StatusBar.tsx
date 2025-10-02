@@ -41,8 +41,8 @@ export const StatusBar = ({
       <div className="flex items-center gap-4">
         {/* Host Button */}
         <button
-          onClick={onHostClick}
-          className="flex items-center gap-1.5 hover:text-purple-300 transition-colors px-2 py-0.5 rounded hover:bg-purple-500/20"
+          onClick={() => window.open('https://getlivenow.lovable.app', '_blank')}
+          className="flex items-center gap-1.5 hover:text-purple-300 transition-colors px-2 py-0.5 rounded hover:bg-purple-500/20 cursor-pointer"
         >
           <Activity className="w-3 h-3" />
           <span className="font-medium">getlivenow.lovable.app</span>
