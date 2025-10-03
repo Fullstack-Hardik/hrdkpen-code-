@@ -74,9 +74,14 @@ export const SettingsModal = ({ trigger }: SettingsModalProps) => {
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto bg-gradient-to-br from-editor-panel via-editor-sidebar to-editor-panel border-purple-500/30">
         <DialogHeader>
-          <DialogTitle>HardkPen Code Editor Settings</DialogTitle>
+          <div className="flex items-center justify-between mb-2">
+            <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              Settings
+            </DialogTitle>
+            <Badge variant="secondary" className="text-xs">HardkPen v1.0</Badge>
+          </div>
         </DialogHeader>
         
         <Tabs defaultValue="editor" className="w-full">
@@ -238,6 +243,23 @@ export const SettingsModal = ({ trigger }: SettingsModalProps) => {
                       Local Storage
                     </Badge>
                   </div>
+                </div>
+
+                <div className="flex justify-end pt-4 border-t">
+                  <Button
+                    onClick={() => {
+                      localStorage.setItem('editor-settings', JSON.stringify({
+                        autoComplete,
+                        theme,
+                        fontSize: fontSize[0],
+                        tabSize: tabSize[0]
+                      }));
+                      alert('Settings saved!');
+                    }}
+                    className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                  >
+                    Save Settings
+                  </Button>
                 </div>
               </CardContent>
             </Card>

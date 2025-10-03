@@ -143,6 +143,18 @@ export const ModernFileExplorer = ({
 
   const finishCreating = () => {
     if (newFileName.trim() && creatingFile) {
+      // Check for duplicate names in the same folder
+      const parentFiles = creatingFile.parentId 
+        ? files.find(f => f.id === creatingFile.parentId)?.children || []
+        : files;
+      
+      const isDuplicate = parentFiles.some(f => f.name === newFileName.trim());
+      
+      if (isDuplicate) {
+        alert(`A ${creatingFile.type} with the name "${newFileName.trim()}" already exists in this location.`);
+        return;
+      }
+      
       onFileCreate(newFileName.trim(), creatingFile.type, creatingFile.parentId);
     }
     setCreatingFile(null);

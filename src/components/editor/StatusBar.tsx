@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 import { 
   GitBranch, 
   AlertCircle, 
@@ -8,7 +9,8 @@ import {
   FileText,
   Activity,
   Zap,
-  Database
+  Database,
+  Boxes
 } from 'lucide-react';
 
 interface StatusBarProps {
@@ -18,6 +20,7 @@ interface StatusBarProps {
   errors?: number;
   warnings?: number;
   onHostClick?: () => void;
+  onExploreClick?: () => void;
 }
 
 export const StatusBar = ({ 
@@ -26,7 +29,8 @@ export const StatusBar = ({
   totalLines = 0,
   errors = 0,
   warnings = 0,
-  onHostClick
+  onHostClick,
+  onExploreClick
 }: StatusBarProps) => {
   const [time, setTime] = useState(new Date());
 
@@ -36,17 +40,30 @@ export const StatusBar = ({
   }, []);
 
   return (
-    <div className="h-6 bg-gradient-to-r from-purple-900/40 to-blue-900/40 border-t border-purple-500/30 flex items-center justify-between px-3 text-xs text-purple-300/90 backdrop-blur-sm">
+    <div className="h-7 bg-gradient-to-r from-purple-900/40 to-blue-900/40 border-t border-purple-500/30 flex items-center justify-between px-3 text-xs text-purple-300/90 backdrop-blur-sm">
       {/* Left Section */}
       <div className="flex items-center gap-4">
         {/* Host Button */}
         <button
           onClick={() => window.open('https://getlivenow.lovable.app', '_blank')}
-          className="flex items-center gap-1.5 hover:text-purple-300 transition-colors px-2 py-0.5 rounded hover:bg-purple-500/20 cursor-pointer"
+          className="flex items-center gap-1.5 hover:text-purple-200 transition-colors px-2 py-0.5 rounded hover:bg-purple-500/20 cursor-pointer"
         >
-          <Activity className="w-3 h-3" />
+          <Activity className="w-3.5 h-3.5" />
           <span className="font-medium">getlivenow.lovable.app</span>
         </button>
+
+        {/* Explore Button */}
+        {onExploreClick && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onExploreClick}
+            className="h-6 px-2 bg-gradient-to-r from-blue-500/20 to-purple-500/20 hover:from-blue-500/30 hover:to-purple-500/30 border border-blue-400/30 text-blue-300"
+          >
+            <Boxes className="w-3.5 h-3.5 mr-1" />
+            <span className="font-medium">Explore</span>
+          </Button>
+        )}
 
         {/* Git Branch */}
         <div className="flex items-center gap-1.5 text-purple-300/70">
@@ -54,20 +71,26 @@ export const StatusBar = ({
           <span>main</span>
         </div>
 
-        {/* Errors & Warnings */}
+        {/* Errors & Warnings with line numbers */}
         {(errors > 0 || warnings > 0) && (
           <div className="flex items-center gap-3">
             {errors > 0 && (
-              <div className="flex items-center gap-1 text-red-400">
-                <AlertCircle className="w-3 h-3" />
-                <span>{errors}</span>
-              </div>
+              <button 
+                className="flex items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
+                title="Click to see error details"
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span className="font-medium">{errors} error{errors > 1 ? 's' : ''}</span>
+              </button>
             )}
             {warnings > 0 && (
-              <div className="flex items-center gap-1 text-yellow-400">
-                <AlertTriangle className="w-3 h-3" />
-                <span>{warnings}</span>
-              </div>
+              <button
+                className="flex items-center gap-1 text-yellow-400 hover:text-yellow-300 transition-colors"
+                title="Click to see warning details"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                <span className="font-medium">{warnings} warning{warnings > 1 ? 's' : ''}</span>
+              </button>
             )}
           </div>
         )}

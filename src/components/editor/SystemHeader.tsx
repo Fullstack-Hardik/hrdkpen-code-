@@ -18,15 +18,13 @@ interface SystemHeaderProps {
   onPublish?: () => void;
   onToggleTerminal?: () => void;
   onDownloadCurrent?: () => void;
-  onToggleFind?: () => void;
 }
 
 export const SystemHeader = ({ 
   onExport, 
   onPublish, 
   onToggleTerminal,
-  onDownloadCurrent,
-  onToggleFind
+  onDownloadCurrent
 }: SystemHeaderProps) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showTeamModal, setShowTeamModal] = useState(false);
@@ -43,6 +41,10 @@ export const SystemHeader = ({
 
   const openExternalLink = (url: string) => {
     window.open(url, '_blank');
+  };
+
+  const openHostSite = () => {
+    window.open('https://getlivenow.lovable.app', '_blank');
   };
 
   return (
@@ -109,15 +111,6 @@ export const SystemHeader = ({
             <FileDown className="w-4 h-4" />
           </Button>
 
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={onExport}
-            className="text-editor-text-muted hover:text-editor-text hover:bg-editor-panel/50"
-            title="Export Project"
-          >
-            <Download className="w-4 h-4" />
-          </Button>
           
           <Button 
             variant="ghost" 
@@ -127,16 +120,6 @@ export const SystemHeader = ({
             title="Publish"
           >
             <Globe className="w-4 h-4" />
-          </Button>
-
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={onToggleFind}
-            className="text-editor-text-muted hover:text-editor-text hover:bg-editor-panel/50"
-            title="Find in Files"
-          >
-            <Search className="w-4 h-4" />
           </Button>
 
           <Button 

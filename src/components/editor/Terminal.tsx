@@ -111,22 +111,31 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCo
         } else {
           addOutput('error', `File not found: ${filename}`);
         }
+      } else if (command === 'npm init' || command === 'npm init -y') {
+        addOutput('output', '📦 Initializing new npm project...');
+        setTimeout(() => {
+          addOutput('success', '✅ Created package.json');
+          onCreateFile?.('package.json');
+          addOutput('output', 'Project initialized successfully!');
+        }, 500);
       } else if (command.startsWith('npm install') || command.startsWith('npm i ')) {
         const packageName = command.replace(/npm (install|i)\s+/, '').trim();
         if (packageName) {
           addOutput('output', `📦 Installing ${packageName}...`);
           setTimeout(() => {
-            addOutput('success', `✅ ${packageName} installed successfully`);
-            addOutput('output', `Run 'npm list' to see installed packages`);
-          }, 1000);
+            addOutput('success', `✅ ${packageName}@latest installed successfully`);
+            addOutput('output', `Added ${packageName} to dependencies`);
+            addOutput('output', `Run 'npm list' to see all installed packages`);
+          }, 1500);
         } else {
           addOutput('error', 'Please specify a package name');
         }
       } else if (command === 'npm list' || command === 'npm ls') {
         addOutput('output', '📦 Installed packages:');
-        addOutput('output', '  - react@18.2.0');
-        addOutput('output', '  - typescript@5.0.0');
-        addOutput('output', '  - vite@4.3.0');
+        addOutput('output', '├── react@18.2.0');
+        addOutput('output', '├── typescript@5.0.0');
+        addOutput('output', '├── vite@4.3.0');
+        addOutput('output', '└── express@4.18.0');
       } else if (command.startsWith('mkdir ')) {
         const dirName = command.replace('mkdir ', '').trim();
         addOutput('success', `Created directory: ${dirName}`);
@@ -303,7 +312,11 @@ Available commands:
 • ts <code>        - Execute TypeScript code
 • python <code>    - Execute Python code
 • node <file>      - Run JavaScript file (like VS Code)
+• npm init         - Initialize npm project
+• npm install <pkg> - Install npm package
+• npm list         - List installed packages
 • touch <file>     - Create a new file
+• mkdir <dir>      - Create a new directory
 • cat <file>       - Display file contents
 • echo <message>   - Print message
 • clear            - Clear terminal
@@ -316,8 +329,11 @@ Available commands:
 Examples:
 • js console.log("Hello World!")
 • python print("Hello from Python!")
-• node script.js
+• node server.js
+• npm install express
+• npm init -y
 • touch newfile.js
+• mkdir src
 • cat index.html
 • echo Hello from terminal
     `;

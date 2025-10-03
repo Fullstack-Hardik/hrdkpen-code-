@@ -423,7 +423,7 @@ Be helpful, provide explanations, and suggest best practices.`;
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-3 overflow-y-auto">
+      <ScrollArea className="flex-1 p-3 overflow-y-auto max-h-[calc(100vh-400px)]">
         {messages.length === 0 && (
           <div className="text-center text-editor-text-muted py-8">
             <div className="mb-4">
