@@ -267,7 +267,14 @@ export const SmartCodeEditor = () => {
       case 'css': return 'css';
       case 'js': return 'javascript';
       case 'ts': return 'typescript';
+      case 'tsx': return 'typescript';
+      case 'jsx': return 'javascript';
       case 'py': return 'python';
+      case 'java': return 'java';
+      case 'c': return 'c';
+      case 'cpp': return 'cpp';
+      case 'h': return 'c';
+      case 'hpp': return 'cpp';
       case 'json': return 'json';
       case 'md': return 'markdown';
       case 'txt': return 'plaintext';
@@ -623,9 +630,9 @@ export const SmartCodeEditor = () => {
                     />
                   </TabsContent>
                   
-                  <TabsContent value="youtube" className="flex-1 m-0">
-                    <div className="flex h-full">
-                      <div className="flex-1 border-r border-border">
+                  <TabsContent value="youtube" className="flex-1 m-0 overflow-hidden">
+                    <div className="flex flex-col h-full">
+                      <div className="flex-1 border-b border-border overflow-auto">
                         <YouTubeSection 
                           onPlayVideo={(url) => {
                             setYoutubeUrl(url);
@@ -633,7 +640,7 @@ export const SmartCodeEditor = () => {
                           }}
                         />
                       </div>
-                      <div className="w-80">
+                      <div className="h-80 border-t border-border">
                         <TeamChatPanel />
                       </div>
                     </div>
