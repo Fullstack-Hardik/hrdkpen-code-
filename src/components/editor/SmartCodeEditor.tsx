@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { YouTubeSection } from './YouTubeSection';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
-import { ExploreModal, PROJECT_TEMPLATES } from './ExploreModal';
+
 
 // Default empty file structure
 const defaultFiles: FileNode[] = [];
@@ -40,7 +40,6 @@ export const SmartCodeEditor = () => {
   const [showYouTube, setShowYouTube] = useState(false);
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [showFind, setShowFind] = useState(false);
-  const [showExplore, setShowExplore] = useState(false);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
   const multiTerminalRef = useRef<MultiTerminalHandle>(null);
 
@@ -414,54 +413,6 @@ export const SmartCodeEditor = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleCreateProject = (projectName: string, templateId: string) => {
-    const template = PROJECT_TEMPLATES.find(t => t.id === templateId);
-    if (!template) return;
-
-    // Create folder with project name
-    const folderId = `folder-${Date.now()}`;
-    const projectFolder: FileNode = {
-      id: folderId,
-      name: projectName,
-      type: 'folder',
-      children: [],
-      isOpen: true
-    };
-
-    // Add template files to the folder
-    template.files.forEach((file, index) => {
-      const parts = file.path.split('/');
-      let currentChildren = projectFolder.children!;
-      
-      for (let i = 0; i < parts.length - 1; i++) {
-        const folderName = parts[i];
-        let folder = currentChildren.find(f => f.type === 'folder' && f.name === folderName);
-        
-        if (!folder) {
-          folder = {
-            id: `folder-${Date.now()}-${i}-${index}`,
-            name: folderName,
-            type: 'folder',
-            children: [],
-            isOpen: true
-          };
-          currentChildren.push(folder);
-        }
-        currentChildren = folder.children!;
-      }
-      
-      const fileName = parts[parts.length - 1];
-      currentChildren.push({
-        id: `file-${Date.now()}-${index}`,
-        name: fileName,
-        type: 'file',
-        content: file.content,
-        language: getLanguageFromExtension(fileName)
-      });
-    });
-
-    setFiles(prev => [...prev, projectFolder]);
-  };
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-editor-bg">
@@ -732,16 +683,8 @@ export const SmartCodeEditor = () => {
           errors={0}
           warnings={0}
           onHostClick={() => window.open('https://getlivenow.lovable.app', '_blank')}
-          onExploreClick={() => setShowExplore(true)}
         />
       </div>
-      
-      {/* Explore Modal */}
-      <ExploreModal
-        isOpen={showExplore}
-        onClose={() => setShowExplore(false)}
-        onCreateProject={handleCreateProject}
-      />
       
       {/* Toggle Buttons */}
       {/* Top-right: open right panel */}

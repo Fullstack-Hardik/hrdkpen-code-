@@ -4,13 +4,11 @@ import {
   GitBranch, 
   AlertCircle, 
   AlertTriangle, 
-  Info, 
   Code, 
   FileText,
   Activity,
   Zap,
-  Database,
-  Boxes
+  Database
 } from 'lucide-react';
 
 interface StatusBarProps {
@@ -20,7 +18,6 @@ interface StatusBarProps {
   errors?: number;
   warnings?: number;
   onHostClick?: () => void;
-  onExploreClick?: () => void;
 }
 
 export const StatusBar = ({ 
@@ -29,8 +26,7 @@ export const StatusBar = ({
   totalLines = 0,
   errors = 0,
   warnings = 0,
-  onHostClick,
-  onExploreClick
+  onHostClick
 }: StatusBarProps) => {
   const [time, setTime] = useState(new Date());
 
@@ -51,19 +47,6 @@ export const StatusBar = ({
           <Activity className="w-3.5 h-3.5" />
           <span className="font-medium">getlivenow.lovable.app</span>
         </button>
-
-        {/* Explore Button */}
-        {onExploreClick && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onExploreClick}
-            className="h-6 px-2 bg-gradient-to-r from-blue-500/20 to-purple-500/20 hover:from-blue-500/30 hover:to-purple-500/30 border border-blue-400/30 text-blue-300"
-          >
-            <Boxes className="w-3.5 h-3.5 mr-1" />
-            <span className="font-medium">Explore</span>
-          </Button>
-        )}
 
         {/* Git Branch */}
         <div className="flex items-center gap-1.5 text-purple-300/70">

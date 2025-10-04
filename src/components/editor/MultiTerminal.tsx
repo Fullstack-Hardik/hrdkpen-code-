@@ -41,10 +41,24 @@ export const MultiTerminal = forwardRef<MultiTerminalHandle, MultiTerminalProps>
       runCode: (language: string, code: string) => {
         const handle = termRefs.current[active];
         if (!handle) return;
-        if (language === 'typescript' || language === 'javascript') {
-          handle.runJS(code);
-        } else if (language === 'python') {
-          handle.execute(`python ${code}`);
+        
+        switch(language) {
+          case 'typescript':
+          case 'javascript':
+            handle.runJS(code);
+            break;
+          case 'python':
+            handle.runPython(code);
+            break;
+          case 'java':
+            handle.execute(`echo "☕ Java execution coming soon! Use Judge0 API for now"`);
+            break;
+          case 'c':
+          case 'cpp':
+            handle.execute(`echo "🔧 C/C++ execution coming soon! Use WASM or Judge0 API"`);
+            break;
+          default:
+            handle.execute(`echo "Language ${language} not yet supported"`);
         }
       },
     }));

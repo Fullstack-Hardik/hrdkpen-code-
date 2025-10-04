@@ -107,6 +107,11 @@ export const ModernFileExplorer = ({
         return <FileJson className={`${iconClass} text-green-500`} />;
       case 'py':
         return <Code className={`${iconClass} text-green-600`} />;
+      case 'java':
+        return <Code className={`${iconClass} text-red-600`} />;
+      case 'c':
+      case 'cpp':
+        return <Code className={`${iconClass} text-purple-600`} />;
       case 'png':
       case 'jpg':
       case 'jpeg':
@@ -120,7 +125,7 @@ export const ModernFileExplorer = ({
 
   const canRunFile = (file: FileNode) => {
     const ext = file.name.split('.').pop()?.toLowerCase();
-    return ['py', 'js', 'ts'].includes(ext || '');
+    return ['py', 'js', 'ts', 'java', 'c', 'cpp'].includes(ext || '');
   };
 
   const startEdit = (file: FileNode) => {
@@ -238,10 +243,10 @@ export const ModernFileExplorer = ({
                   e.stopPropagation();
                   onRunCode(file);
                 }}
-                className="h-6 w-6 p-0 hover:bg-green-100 dark:hover:bg-green-900/50"
-                title="Run Code"
+                className="h-6 w-6 p-0 rounded-md bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-sm hover:shadow-md transition-all"
+                title={`Run ${file.name.split('.').pop()?.toUpperCase()} Code`}
               >
-                <Play className="w-3 h-3 text-green-600" />
+                <Play className="w-3.5 h-3.5 fill-white" />
               </Button>
             )}
             

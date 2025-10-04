@@ -34,6 +34,7 @@ interface TerminalProps {
 export type TerminalHandle = {
   runJS: (code: string) => void;
   runTS: (code: string) => void;
+  runPython: (code: string) => void;
   execute: (cmd: string) => void;
 };
 export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCode, getFileSystem, name = 'Terminal', showHeader = true, onExit, onCreateFile }, ref) => {
@@ -261,7 +262,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCo
       try {
         const { loadPyodide } = await import('pyodide');
         const pyodide = await loadPyodide({
-          indexURL: "https://cdn.jsdelivr.net/pyodide/v0.24.1/full/"
+          indexURL: "https://cdn.jsdelivr.net/pyodide/v0.28.2/full/"
         });
         
         addOutput('success', 'Python environment ready!');
@@ -424,6 +425,10 @@ Examples:
     runTS: (code: string) => {
       addOutput('input', `$ Running TypeScript code...`);
       runJavaScript(code);
+    },
+    runPython: (code: string) => {
+      addOutput('input', `$ Running Python code...`);
+      runPython(code);
     },
     execute: executeCommand
   }));
