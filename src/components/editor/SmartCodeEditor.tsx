@@ -579,8 +579,8 @@ export const SmartCodeEditor = () => {
                     </Button>
                   </div>
 
-                  <TabsContent value="preview" className="flex-1 m-0">
-                    <LivePreview 
+                   <TabsContent value="preview" className="flex-1 m-0 h-full">
+                    <LivePreview
                       htmlContent={previewContent.html} 
                       cssContent={previewContent.css} 
                       jsContent={previewContent.js}
@@ -588,8 +588,8 @@ export const SmartCodeEditor = () => {
                     />
                   </TabsContent>
                   
-                   <TabsContent value="ai" className="flex-1 m-0">
-                    <EnhancedAIAssistant 
+                   <TabsContent value="ai" className="flex-1 m-0 h-full">
+                    <EnhancedAIAssistant
                       getActiveContext={() => {
                         const activeFile = openTabs.find(tab => tab.id === activeTab);
                         const allFilesMap: Record<string, string> = {};
@@ -630,20 +630,13 @@ export const SmartCodeEditor = () => {
                     />
                   </TabsContent>
                   
-                  <TabsContent value="youtube" className="flex-1 m-0 overflow-hidden">
-                    <div className="flex flex-col h-full">
-                      <div className="flex-1 border-b border-border overflow-auto">
-                        <YouTubeSection 
-                          onPlayVideo={(url) => {
-                            setYoutubeUrl(url);
-                            setShowYouTube(true);
-                          }}
-                        />
-                      </div>
-                      <div className="h-80 border-t border-border">
-                        <TeamChatPanel />
-                      </div>
-                    </div>
+                   <TabsContent value="youtube" className="flex-1 m-0 h-full">
+                    <YouTubeSection 
+                      onPlayVideo={(url) => {
+                        setYoutubeUrl(url);
+                        setShowYouTube(true);
+                      }}
+                    />
                   </TabsContent>
                 </Tabs>
               </ResizablePanel>

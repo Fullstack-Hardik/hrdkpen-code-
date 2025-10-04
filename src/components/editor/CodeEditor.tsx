@@ -145,7 +145,8 @@ export const CodeEditor = ({ value, onChange, language, fileName, onRun }: CodeE
   };
 
   const handleRun = () => {
-    if (language === 'javascript' || language === 'typescript') {
+    const runnableLanguages = ['javascript', 'typescript', 'python', 'java', 'c', 'cpp'];
+    if (runnableLanguages.includes(language)) {
       setIsRunning(true);
       const code = editorRef.current?.getValue?.() ?? value;
       onRun?.(code, language, fileName);
@@ -209,15 +210,15 @@ export const CodeEditor = ({ value, onChange, language, fileName, onRun }: CodeE
             Export
           </Button>
           
-          {(language === 'javascript' || language === 'typescript') && (
+          {['javascript', 'typescript', 'python', 'java', 'c', 'cpp'].includes(language) && (
             <Button 
               variant="ghost" 
               size="sm" 
               onClick={handleRun}
               disabled={isRunning}
-              className="h-7 px-2 text-editor-success hover:text-editor-success glow-accent"
+              className="h-7 px-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-sm hover:shadow-md transition-all"
             >
-              <Play className="w-3 h-3 mr-1" />
+              <Play className="w-3.5 h-3.5 mr-1.5 fill-white" />
               {isRunning ? 'Running...' : 'Run'}
             </Button>
           )}
