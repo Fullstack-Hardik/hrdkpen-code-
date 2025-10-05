@@ -1,1 +1,4 @@
 project_id = "kzygevgeeuhtdkjdhhoa"
+
+[functions.team-collaboration]
+verify_jwt = true

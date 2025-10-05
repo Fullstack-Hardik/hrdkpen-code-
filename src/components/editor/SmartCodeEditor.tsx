@@ -7,7 +7,7 @@ import { MultiTerminal, MultiTerminalHandle } from './MultiTerminal';
 import { YouTubePlayer } from './YouTubePlayer';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { EnhancedAIAssistant } from './EnhancedAIAssistant';
+import { ModernAIAssistant } from './ModernAIAssistant';
 import { FindInFiles } from './FindInFiles';
 import { StatusBar } from './StatusBar';
 import { TeamChatPanel } from './TeamChatPanel';
@@ -589,43 +589,14 @@ export const SmartCodeEditor = () => {
                   </TabsContent>
                   
                    <TabsContent value="ai" className="flex-1 m-0 h-full">
-                    <EnhancedAIAssistant
-                      getActiveContext={() => {
-                        const activeFile = openTabs.find(tab => tab.id === activeTab);
-                        const allFilesMap: Record<string, string> = {};
-                        const collectFiles = (fileList: FileNode[]) => {
-                          fileList.forEach(file => {
-                            if (file.type === 'file') {
-                              allFilesMap[file.name] = file.content || '';
-                            }
-                            if (file.children) {
-                              collectFiles(file.children);
-                            }
-                          });
-                        };
-                        collectFiles(files);
-                        return {
-                          fileName: activeFile?.name,
-                          code: activeFile?.content,
-                          allFiles: allFilesMap
-                        };
-                      }}
-                      onFileCreate={(fileName, content) => {
-                        handleFileCreate(fileName, 'file');
-                        const newFile = findFileById(files, `file-${Date.now()}`);
-                        if (newFile) updateFileContent(newFile.id, content);
-                      }}
-                      onFileUpdate={(fileName, content) => {
-                        const file = files.find(f => f.name === fileName);
-                        if (file) updateFileContent(file.id, content);
-                      }}
-                      onFileDelete={(fileName) => {
-                        const file = files.find(f => f.name === fileName);
-                        if (file) handleFileDelete(file.id);
-                      }}
-                      onFileRead={(fileName) => {
-                        const file = files.find(f => f.name === fileName);
-                        return file?.content;
+                    <ModernAIAssistant
+                      onCodeInsert={(code) => {
+                        if (activeTab && openTabs.find(tab => tab.id === activeTab)) {
+                          const file = openTabs.find(tab => tab.id === activeTab);
+                          if (file) {
+                            updateFileContent(file.id, code);
+                          }
+                        }
                       }}
                     />
                   </TabsContent>
