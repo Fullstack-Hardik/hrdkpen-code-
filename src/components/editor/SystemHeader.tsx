@@ -43,7 +43,7 @@ export const SystemHeader = ({
     window.open(url, '_blank');
   };
 
-  const openHostSite = () => {
+  const handlePublish = () => {
     window.open('https://getlivenow.lovable.app', '_blank');
   };
 
@@ -115,9 +115,9 @@ export const SystemHeader = ({
           <Button 
             variant="ghost" 
             size="sm"
-            onClick={onPublish}
+            onClick={handlePublish}
             className="text-editor-text-muted hover:text-editor-text hover:bg-editor-panel/50"
-            title="Publish"
+            title="Publish to getlivenow.lovable.app"
           >
             <Globe className="w-4 h-4" />
           </Button>

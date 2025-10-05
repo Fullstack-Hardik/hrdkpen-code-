@@ -349,40 +349,38 @@ Be helpful, provide explanations, and suggest best practices.`;
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-purple-950/30 via-editor-panel to-blue-950/30">
       {/* Modern Header */}
-      <div className="flex items-center justify-between p-4 border-b border-purple-500/30 bg-gradient-to-r from-purple-900/50 to-blue-900/50 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-purple-500/30 bg-gradient-to-r from-purple-900/50 to-blue-900/50 backdrop-blur-sm">
+        <div className="flex items-center gap-2">
           <div className="relative">
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/50">
-              <Brain className="w-5 h-5 text-white" />
+            <div className="w-7 h-7 bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 rounded-lg flex items-center justify-center shadow-md shadow-purple-500/30">
+              <Brain className="w-4 h-4 text-white" />
             </div>
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-editor-panel animate-pulse"></div>
+            <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-editor-panel animate-pulse"></div>
           </div>
           <div>
-            <h3 className="text-base font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+            <h3 className="text-sm font-semibold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
               AI Copilot
             </h3>
-            <p className="text-xs text-purple-300/70">Powered by Gemini 2.5 Flash</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
             onClick={clearChat}
-            className="h-8 px-3 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/30"
+            className="h-7 px-2 hover:bg-purple-500/20 text-purple-300 transition-colors"
             title="Clear Chat"
           >
-            <Trash2 className="w-4 h-4 mr-1" />
-            Clear
+            <Trash2 className="w-3.5 h-3.5" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setShowSettings(!showSettings)}
-            className="h-8 px-3 bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 border border-blue-500/30"
+            className="h-7 px-2 hover:bg-blue-500/20 text-blue-300 transition-colors"
             title="Settings"
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-3.5 h-3.5" />
           </Button>
         </div>
       </div>
@@ -412,11 +410,11 @@ Be helpful, provide explanations, and suggest best practices.`;
               variant="ghost"
               size="sm"
               onClick={() => setInput(action.prompt)}
-              className="h-8 justify-start text-xs"
+              className="h-7 justify-start text-xs hover:bg-purple-500/10 transition-colors"
               title={action.text}
             >
-              <action.icon className="w-3 h-3 mr-1" />
-              {action.text}
+              <action.icon className="w-3 h-3 mr-1.5" />
+              <span className="truncate">{action.text}</span>
             </Button>
           ))}
         </div>

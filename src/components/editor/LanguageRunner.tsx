@@ -114,6 +114,10 @@ sys.stderr = StringIO()
     
     switch (language) {
       case 'python':
+        if (!pyodide) {
+          onOutput('Python environment not ready. Please wait...', 'error');
+          return;
+        }
         await runPython(file.content);
         break;
       case 'java':
@@ -126,12 +130,6 @@ sys.stderr = StringIO()
         onOutput(`Language not supported: ${language}`, 'error');
     }
   };
-
-  useEffect(() => {
-    if (language === 'python' && pyodide && file.content) {
-      runCode();
-    }
-  }, [file.content, pyodide, language]);
 
   if (loading) {
     return <div className="text-xs text-muted-foreground">Loading {language} environment...</div>;

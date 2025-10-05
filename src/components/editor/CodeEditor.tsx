@@ -150,7 +150,7 @@ export const CodeEditor = ({ value, onChange, language, fileName, onRun }: CodeE
       setIsRunning(true);
       const code = editorRef.current?.getValue?.() ?? value;
       onRun?.(code, language, fileName);
-      setTimeout(() => setIsRunning(false), 200);
+      setTimeout(() => setIsRunning(false), 500);
     }
   };
 
