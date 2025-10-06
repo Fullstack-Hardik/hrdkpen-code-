@@ -79,6 +79,33 @@ export type Database = {
           },
         ]
       }
+      connection_requests: {
+        Row: {
+          created_at: string
+          id: string
+          receiver_id: string
+          sender_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          receiver_id: string
+          sender_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          receiver_id?: string
+          sender_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       file_changes: {
         Row: {
           change_type: string
@@ -160,6 +187,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      online_users: {
+        Row: {
+          display_name: string
+          id: string
+          is_available: boolean
+          last_seen: string
+          user_id: string
+        }
+        Insert: {
+          display_name: string
+          id?: string
+          is_available?: boolean
+          last_seen?: string
+          user_id: string
+        }
+        Update: {
+          display_name?: string
+          id?: string
+          is_available?: boolean
+          last_seen?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {

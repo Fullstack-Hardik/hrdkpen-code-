@@ -317,14 +317,39 @@ export const useTeamSync = () => {
 
     if (error) {
       console.error('Error syncing file:', error);
+      toast({
+        title: 'Sync Error',
+        description: 'Failed to sync file changes',
+        variant: 'destructive'
+      });
+      return;
     }
+
+    console.log('File synced successfully:', filePath);
   };
 
   const applyFileChange = (change: FileChange) => {
-    // This will be implemented to update the file tree
+    console.log('Applying file change:', change);
+    
+    // Update local files state
+    setFiles(prevFiles => {
+      const updateFileTree = (nodes: FileNode[]): FileNode[] => {
+        return nodes.map(node => {
+          if (node.type === 'file' && node.name === change.file_path) {
+            return { ...node, content: change.content };
+          }
+          if (node.children) {
+            return { ...node, children: updateFileTree(node.children) };
+          }
+          return node;
+        });
+      };
+      return updateFileTree(prevFiles);
+    });
+
     toast({
       title: 'File Updated',
-      description: `${change.file_path} was ${change.change_type}d by team member`,
+      description: `${change.file_path} was ${change.change_type}d`,
     });
   };
 

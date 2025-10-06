@@ -431,7 +431,7 @@ export const TeamCollaboration = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Real-time Collaboration Status */}
+      {/* Connection Status */}
       <Card className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
         <CardContent className="pt-6">
           <div className="flex items-start gap-3">
@@ -441,8 +441,8 @@ export const TeamCollaboration = () => {
                 Real-time Collaboration Active
               </h4>
               <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                Connected to Supabase. Live synchronization, user management, and change tracking are enabled.
-                {teamMembers.length > 1 && ` ${teamMembers.length} users are currently collaborating.`}
+                Live synchronization enabled. {teamMembers.length} user{teamMembers.length !== 1 ? 's' : ''} connected.
+                All changes are synced in real-time.
               </p>
             </div>
           </div>
