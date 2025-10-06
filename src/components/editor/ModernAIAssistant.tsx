@@ -15,7 +15,8 @@ import {
   ChevronDown,
   Zap,
   Terminal,
-  Bug
+  Bug,
+  Settings
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -42,8 +43,19 @@ export const ModernAIAssistant = ({ onCodeInsert }: ModernAIAssistantProps) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(true);
+  const [apiKey, setApiKey] = useState('');
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const savedApiKey = localStorage.getItem('ai_api_key');
+    if (savedApiKey) {
+      setApiKey(savedApiKey);
+    } else {
+      setShowApiKeyInput(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -51,9 +63,30 @@ export const ModernAIAssistant = ({ onCodeInsert }: ModernAIAssistantProps) => {
     }
   }, [messages]);
 
+  const saveApiKey = () => {
+    if (apiKey.trim()) {
+      localStorage.setItem('ai_api_key', apiKey);
+      setShowApiKeyInput(false);
+      toast({
+        title: 'API Key Saved',
+        description: 'Your API key has been saved locally',
+      });
+    }
+  };
+
   const handleSend = async (customPrompt?: string) => {
     const messageText = customPrompt || input;
     if (!messageText.trim() || isLoading) return;
+
+    if (!apiKey) {
+      toast({
+        title: 'API Key Required',
+        description: 'Please add your API key first',
+        variant: 'destructive',
+      });
+      setShowApiKeyInput(true);
+      return;
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -109,6 +142,14 @@ export const ModernAIAssistant = ({ onCodeInsert }: ModernAIAssistantProps) => {
             </div>
           </div>
           <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowApiKeyInput(!showApiKeyInput)}
+              className="h-7 px-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20"
+            >
+              <Settings className="w-3 h-3" />
+            </Button>
             {messages.length > 0 && (
               <Button
                 variant="ghost"
@@ -122,6 +163,29 @@ export const ModernAIAssistant = ({ onCodeInsert }: ModernAIAssistantProps) => {
           </div>
         </div>
       </div>
+
+      {/* API Key Input */}
+      {showApiKeyInput && (
+        <div className="px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
+          <p className="text-xs font-medium mb-2">API Key Configuration</p>
+          <div className="flex gap-2">
+            <Input
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Enter your AI API key"
+              className="flex-1 text-sm h-8"
+            />
+            <Button
+              onClick={saveApiKey}
+              size="sm"
+              className="h-8 px-3"
+            >
+              Save
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Messages Area */}
       <ScrollArea ref={scrollRef} className="flex-1 px-4 py-3">

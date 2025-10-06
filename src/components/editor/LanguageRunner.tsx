@@ -88,32 +88,43 @@ sys.stderr = StringIO()
 
   const runJava = async (code: string) => {
     try {
+      onOutput('\n▶ Starting Java execution...', 'output');
       onOutput('🔄 Compiling Java code...', 'output');
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 800));
       
-      // Simulate compilation
       onOutput('✓ Compilation successful', 'output');
-      onOutput('🚀 Running Java program...', 'output');
-      await new Promise(resolve => setTimeout(resolve, 300));
+      onOutput('🚀 Running Java program...\n', 'output');
+      await new Promise(resolve => setTimeout(resolve, 400));
       
-      // Extract class name and look for main method
+      // Extract class name
       const classMatch = code.match(/public\s+class\s+(\w+)/);
       const className = classMatch ? classMatch[1] : 'Main';
       
-      // Simple Java execution simulation
-      if (code.includes('System.out.println')) {
-        const printMatches = code.match(/System\.out\.println\((.*?)\);/g);
-        if (printMatches) {
-          printMatches.forEach(match => {
-            const content = match.match(/println\((.*?)\)/)?.[1] || '';
-            const evaluated = content.replace(/"/g, '').trim();
-            onOutput(evaluated, 'output');
-          });
-        }
+      // Execute print statements
+      if (code.includes('System.out.println') || code.includes('System.out.print')) {
+        const printlnMatches = code.match(/System\.out\.println\s*\((.*?)\)\s*;/g);
+        const printMatches = code.match(/System\.out\.print\s*\((.*?)\)\s*;/g);
+        
+        const allPrints = [
+          ...(printlnMatches || []).map(m => ({ text: m, newline: true })),
+          ...(printMatches || []).map(m => ({ text: m, newline: false }))
+        ];
+        
+        allPrints.forEach(({ text, newline }) => {
+          const content = text.match(/print(?:ln)?\s*\((.*?)\)/)?.[1] || '';
+          let evaluated = content.replace(/"/g, '').replace(/\+/g, '').trim();
+          
+          // Handle simple string concatenation
+          if (evaluated.includes('  ')) {
+            evaluated = evaluated.replace(/\s+/g, ' ');
+          }
+          
+          onOutput(evaluated + (newline ? '\n' : ''), 'output');
+        });
       }
       
       onOutput('\n✓ Program executed successfully', 'output');
-      onOutput('⚠ Note: This is a simulated Java environment. For full Java support, use a Java compiler.', 'output');
+      onOutput('⚠ Simulated environment - use a real Java compiler for production code', 'output');
     } catch (error) {
       onOutput(`Java Error: ${error}`, 'error');
     }
@@ -121,37 +132,55 @@ sys.stderr = StringIO()
 
   const runCpp = async (code: string) => {
     try {
+      onOutput('\n▶ Starting C/C++ execution...', 'output');
       onOutput('🔄 Compiling C/C++ code...', 'output');
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 800));
       
       onOutput('✓ Compilation successful', 'output');
-      onOutput('🚀 Running C/C++ program...', 'output');
-      await new Promise(resolve => setTimeout(resolve, 300));
+      onOutput('🚀 Running C/C++ program...\n', 'output');
+      await new Promise(resolve => setTimeout(resolve, 400));
       
-      // Simple C/C++ execution simulation
+      // Execute print statements
       if (code.includes('printf') || code.includes('cout')) {
-        const printfMatches = code.match(/printf\((.*?)\);/g);
-        const coutMatches = code.match(/cout\s*<<\s*(.*?);/g);
+        const printfMatches = code.match(/printf\s*\(\s*"([^"]*)"\s*(?:,\s*[^)]+)?\s*\)\s*;/g);
+        const coutLines = code.match(/cout\s*<<[^;]+;/g);
         
         if (printfMatches) {
           printfMatches.forEach(match => {
-            const content = match.match(/printf\((.*?)\)/)?.[1] || '';
-            const evaluated = content.replace(/"/g, '').replace(/%d|%s|%f/g, '').trim();
+            const content = match.match(/printf\s*\(\s*"([^"]*)"/)?.[1] || '';
+            let evaluated = content
+              .replace(/\\n/g, '\n')
+              .replace(/\\t/g, '\t')
+              .replace(/%d|%s|%f|%c/g, '[value]');
             onOutput(evaluated, 'output');
           });
         }
         
-        if (coutMatches) {
-          coutMatches.forEach(match => {
-            const content = match.match(/<<\s*(.*?);/)?.[1] || '';
-            const evaluated = content.replace(/"/g, '').replace(/endl/g, '\n').trim();
-            onOutput(evaluated, 'output');
+        if (coutLines) {
+          coutLines.forEach(line => {
+            let output = '';
+            const parts = line.split('<<');
+            
+            for (let i = 1; i < parts.length; i++) {
+              const part = parts[i].trim().replace(/;$/, '');
+              
+              if (part.startsWith('"') && part.includes('"')) {
+                const text = part.match(/"([^"]*)"/)?.[1] || '';
+                output += text;
+              } else if (part === 'endl') {
+                output += '\n';
+              } else {
+                output += '[value]';
+              }
+            }
+            
+            onOutput(output, 'output');
           });
         }
       }
       
       onOutput('\n✓ Program executed successfully', 'output');
-      onOutput('⚠ Note: This is a simulated C/C++ environment. For full compilation, use GCC/Clang.', 'output');
+      onOutput('⚠ Simulated environment - use GCC/Clang for production code', 'output');
     } catch (error) {
       onOutput(`C++ Error: ${error}`, 'error');
     }
