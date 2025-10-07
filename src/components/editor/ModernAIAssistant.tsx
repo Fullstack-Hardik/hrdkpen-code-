@@ -29,6 +29,8 @@ interface Message {
 
 interface ModernAIAssistantProps {
   onCodeInsert?: (code: string) => void;
+  attachedFile?: { name: string; content: string } | null;
+  onFileDetach?: () => void;
 }
 
 const quickActions = [
@@ -38,13 +40,14 @@ const quickActions = [
   { icon: Terminal, label: 'Refactor', prompt: 'Refactor this code to be cleaner' },
 ];
 
-export const ModernAIAssistant = ({ onCodeInsert }: ModernAIAssistantProps) => {
+export const ModernAIAssistant = ({ onCodeInsert, attachedFile, onFileDetach }: ModernAIAssistantProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showQuickActions, setShowQuickActions] = useState(true);
   const [apiKey, setApiKey] = useState('');
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [suggestedCode, setSuggestedCode] = useState<string>('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -91,7 +94,9 @@ export const ModernAIAssistant = ({ onCodeInsert }: ModernAIAssistantProps) => {
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: messageText,
+      content: attachedFile 
+        ? `${messageText}\n\nAttached File: ${attachedFile.name}\n\`\`\`\n${attachedFile.content}\n\`\`\``
+        : messageText,
       timestamp: new Date(),
     };
 
@@ -101,17 +106,22 @@ export const ModernAIAssistant = ({ onCodeInsert }: ModernAIAssistantProps) => {
     setShowQuickActions(false);
 
     try {
-      // Simulate AI response
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Simulate AI response with code suggestion
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      const codeExample = `// Suggested improvement\nfunction optimizedCode() {\n  // Better implementation\n  return true;\n}`;
       
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `I'll help you with that. Here's what I suggest:\n\n1. Review the code structure\n2. Check for common issues\n3. Apply best practices\n\nWould you like me to generate a code example?`,
+        content: attachedFile
+          ? `I've analyzed your file "${attachedFile.name}". Here's what I suggest:\n\n1. Code looks good overall\n2. Consider these optimizations:\n\n\`\`\`javascript\n${codeExample}\n\`\`\`\n\nClick "Accept Changes" below to apply this code.`
+          : `I'll help you with that. Here's what I suggest:\n\n1. Review the code structure\n2. Check for common issues\n3. Apply best practices\n\nWould you like me to generate a code example?`,
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, aiMessage]);
+      setSuggestedCode(codeExample);
     } catch (error) {
       toast({
         title: 'Error',
@@ -120,6 +130,17 @@ export const ModernAIAssistant = ({ onCodeInsert }: ModernAIAssistantProps) => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const acceptChanges = () => {
+    if (suggestedCode && onCodeInsert) {
+      onCodeInsert(suggestedCode);
+      toast({
+        title: 'Changes Applied',
+        description: 'Code has been updated',
+      });
+      setSuggestedCode('');
     }
   };
 
@@ -184,6 +205,28 @@ export const ModernAIAssistant = ({ onCodeInsert }: ModernAIAssistantProps) => {
               Save
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* Attached File Indicator */}
+      {attachedFile && (
+        <div className="px-4 py-2 bg-purple-50 dark:bg-purple-900/20 border-b border-purple-200 dark:border-purple-800 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <FileText className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+            <span className="text-xs font-medium text-purple-900 dark:text-purple-100">
+              Attached: {attachedFile.name}
+            </span>
+          </div>
+          {onFileDetach && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onFileDetach}
+              className="h-6 px-2 text-xs hover:bg-purple-100 dark:hover:bg-purple-900/40"
+            >
+              Remove
+            </Button>
+          )}
         </div>
       )}
 
@@ -257,7 +300,17 @@ export const ModernAIAssistant = ({ onCodeInsert }: ModernAIAssistantProps) => {
       )}
 
       {/* Input Area */}
-      <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
+      <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm space-y-2">
+        {suggestedCode && (
+          <Button
+            onClick={acceptChanges}
+            size="sm"
+            className="w-full h-8 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+          >
+            <Sparkles className="w-3 h-3 mr-2" />
+            Accept Changes
+          </Button>
+        )}
         <div className="flex gap-2">
           <Input
             value={input}
