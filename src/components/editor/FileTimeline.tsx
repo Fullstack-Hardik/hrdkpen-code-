@@ -13,18 +13,26 @@ interface TimelineEntry {
   description: string;
 }
 
+interface FileNode {
+  id: string;
+  name: string;
+  type: 'file' | 'folder';
+  content?: string;
+  language?: string;
+  children?: FileNode[];
+}
+
 interface FileTimelineProps {
-  fileId: string;
-  fileName: string;
+  file: FileNode;
   onRestore?: (content: string) => void;
   onClose: () => void;
 }
 
-export const FileTimeline = ({ fileId, fileName, onRestore, onClose }: FileTimelineProps) => {
+export const FileTimeline = ({ file, onRestore, onClose }: FileTimelineProps) => {
   const [timeline, setTimeline] = useState<TimelineEntry[]>([]);
 
   useEffect(() => {
-    const savedTimeline = localStorage.getItem(`timeline_${fileId}`);
+    const savedTimeline = localStorage.getItem(`timeline_${file.id}`);
     if (savedTimeline) {
       const parsed = JSON.parse(savedTimeline);
       setTimeline(parsed.map((entry: any) => ({
@@ -32,7 +40,7 @@ export const FileTimeline = ({ fileId, fileName, onRestore, onClose }: FileTimel
         timestamp: new Date(entry.timestamp)
       })));
     }
-  }, [fileId]);
+  }, [file.id]);
 
   const handleRestore = (entry: TimelineEntry) => {
     if (onRestore) {
@@ -46,7 +54,7 @@ export const FileTimeline = ({ fileId, fileName, onRestore, onClose }: FileTimel
         <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-semibold">Timeline: {fileName}</h3>
+            <h3 className="text-sm font-semibold">Timeline: {file.name}</h3>
             <Badge variant="secondary" className="text-xs">
               {timeline.length} changes
             </Badge>
