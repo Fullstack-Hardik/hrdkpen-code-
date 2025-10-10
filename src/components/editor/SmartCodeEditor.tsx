@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { SystemHeader } from './SystemHeader';
-import { ModernFileExplorer, FileNode } from './ModernFileExplorer';
+import { FileExplorer, FileNode } from './FileExplorer';
 import { CodeEditor } from './CodeEditor';
 import { LivePreview } from './LivePreview';
 import { MultiTerminal, MultiTerminalHandle } from './MultiTerminal';
@@ -10,10 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ModernAIAssistant } from './ModernAIAssistant';
 import { FindInFiles } from './FindInFiles';
 import { StatusBar } from './StatusBar';
-import { TeamShareLink } from './TeamShareLink';
-import { FileTimeline } from './FileTimeline';
-import { useTeamShare } from '@/hooks/useTeamShare';
-import { getLanguageFromFileName } from '@/utils/fileHelpers';
+import { TeamChatPanel } from './TeamChatPanel';
 import { 
   SidebarOpen, 
   SidebarClose,
@@ -22,8 +19,7 @@ import {
   Monitor,
   ChevronUp,
   Sparkles,
-  Youtube,
-  Users
+  Youtube
 } from 'lucide-react';
 import { YouTubeSection } from './YouTubeSection';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
@@ -45,14 +41,7 @@ export const SmartCodeEditor = () => {
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [showFind, setShowFind] = useState(false);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
-  const [attachedFile, setAttachedFile] = useState<{ name: string; content: string } | null>(null);
-  const [showTimeline, setShowTimeline] = useState(false);
-  const [timelineFile, setTimelineFile] = useState<FileNode | null>(null);
   const multiTerminalRef = useRef<MultiTerminalHandle>(null);
-  
-  // Team collaboration
-  const teamShare = useTeamShare();
-  const [showTeamPanel, setShowTeamPanel] = useState(false);
 
   // Auto-save functionality
   useEffect(() => {
@@ -272,7 +261,25 @@ export const SmartCodeEditor = () => {
   };
 
   const getLanguageFromExtension = (filename: string): string => {
-    return getLanguageFromFileName(filename);
+    const ext = filename.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'html': return 'html';
+      case 'css': return 'css';
+      case 'js': return 'javascript';
+      case 'ts': return 'typescript';
+      case 'tsx': return 'typescript';
+      case 'jsx': return 'javascript';
+      case 'py': return 'python';
+      case 'java': return 'java';
+      case 'c': return 'c';
+      case 'cpp': return 'cpp';
+      case 'h': return 'c';
+      case 'hpp': return 'cpp';
+      case 'json': return 'json';
+      case 'md': return 'markdown';
+      case 'txt': return 'plaintext';
+      default: return 'plaintext';
+    }
   };
 
   const getPreviewContent = () => {
@@ -413,32 +420,6 @@ export const SmartCodeEditor = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleAttachToAI = (file: FileNode) => {
-    setAttachedFile({ name: file.name, content: file.content || '' });
-    setActiveRightTab('ai');
-    setRightPanelVisible(true);
-  };
-
-  const handleShowTimeline = (file: FileNode) => {
-    setTimelineFile(file);
-    setShowTimeline(true);
-  };
-
-  const handleRunCode = (file: FileNode) => {
-    if (!terminalVisible) setTerminalVisible(true);
-    setTimeout(() => {
-      multiTerminalRef.current?.runCode(file.language || 'plaintext', file.content || '');
-    }, 100);
-  };
-
-  const handleCreateSession = () => {
-    const hostName = prompt('Enter your name:');
-    if (hostName) {
-      const link = teamShare.createSession(hostName, files);
-      setShowTeamPanel(true);
-    }
-  };
-
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-editor-bg">
@@ -450,46 +431,6 @@ export const SmartCodeEditor = () => {
         onDownloadCurrent={handleDownloadCurrent}
       />
       
-      {/* Team Collaboration Button */}
-      {!teamShare.isConnected && (
-        <div className="fixed top-16 left-4 z-50">
-          <Button
-            onClick={handleCreateSession}
-            className="rounded-full h-10 px-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 shadow-lg transition-all hover:shadow-xl hover:scale-105"
-            title="Start Team Session"
-          >
-            <Users className="w-4 h-4 mr-2" />
-            Team
-          </Button>
-        </div>
-      )}
-      
-      {/* Team Connected Indicator */}
-      {teamShare.isConnected && !showTeamPanel && (
-        <div className="fixed top-16 left-4 z-50">
-          <Button
-            onClick={() => setShowTeamPanel(true)}
-            className="rounded-full h-10 px-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 shadow-lg animate-pulse"
-            title="Team Session Active - Click to view"
-          >
-            <Users className="w-4 h-4 mr-2" />
-            Connected ({teamShare.members.length})
-          </Button>
-        </div>
-      )}
-      
-      {/* Team Share Panel */}
-      {teamShare.isConnected && showTeamPanel && (
-        <TeamShareLink
-          isHost={teamShare.isHost}
-          shareLink={teamShare.shareLink}
-          members={teamShare.members}
-          onKick={teamShare.kickMember}
-          onLeave={teamShare.leaveSession}
-          onClose={() => setShowTeamPanel(false)}
-        />
-      )}
-      
       {/* Main Editor Layout */}
       <div className="flex flex-col flex-1 overflow-hidden">
         <ResizablePanelGroup direction="horizontal" className="flex-1">
@@ -498,18 +439,15 @@ export const SmartCodeEditor = () => {
             <>
               <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
                 <div className="h-full border-r border-border">
-                  <ModernFileExplorer
+                  <FileExplorer
                     files={files}
                     onFileSelect={handleFileSelect}
                     onFileCreate={handleFileCreate}
                     onFileDelete={handleFileDelete}
                     onFileRename={handleFileRename}
-                    onFileMove={(dragId, targetFolderId) => handleMoveNode(dragId, targetFolderId)}
                     selectedFileId={activeTab}
                     onImportFolder={handleImportFolder}
-                    onRunCode={handleRunCode}
-                    onAttachToAI={handleAttachToAI}
-                    onShowTimeline={handleShowTimeline}
+                    onMove={(dragId, targetFolderId) => handleMoveNode(dragId, targetFolderId)}
                   />
                 </div>
               </ResizablePanel>
@@ -660,8 +598,6 @@ export const SmartCodeEditor = () => {
                           }
                         }
                       }}
-                      attachedFile={attachedFile}
-                      onFileDetach={() => setAttachedFile(null)}
                     />
                   </TabsContent>
                   
@@ -717,21 +653,9 @@ export const SmartCodeEditor = () => {
           totalLines={activeFile?.content?.split('\n').length || 0}
           errors={0}
           warnings={0}
-          onHostClick={handleCreateSession}
+          onHostClick={() => window.open('https://getlivenow.lovable.app', '_blank')}
         />
       </div>
-      
-      {/* File Timeline Modal */}
-      {showTimeline && timelineFile && (
-        <FileTimeline
-          file={timelineFile}
-          onClose={() => setShowTimeline(false)}
-          onRestore={(content) => {
-            updateFileContent(timelineFile.id, content);
-            setShowTimeline(false);
-          }}
-        />
-      )}
       
       {/* Toggle Buttons */}
       {/* Top-right: open right panel */}
