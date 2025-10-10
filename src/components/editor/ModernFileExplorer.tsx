@@ -16,9 +16,7 @@ import {
   Palette,
   FileJson,
   Image,
-  Play,
-  Sparkles,
-  Clock
+  Play
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -48,8 +46,6 @@ interface ModernFileExplorerProps {
   selectedFileId?: string;
   onImportFolder?: (files: { path: string; content: string }[]) => void;
   onRunCode?: (file: FileNode) => void;
-  onAttachToAI?: (file: FileNode) => void;
-  onShowTimeline?: (file: FileNode) => void;
 }
 
 export const ModernFileExplorer = ({ 
@@ -62,8 +58,6 @@ export const ModernFileExplorer = ({
   selectedFileId, 
   onImportFolder,
   onRunCode,
-  onAttachToAI,
-  onShowTimeline,
 }: ModernFileExplorerProps) => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['root']));
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -331,19 +325,7 @@ export const ModernFileExplorer = ({
                   <MoreHorizontal className="w-3 h-3" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-44">
-                {file.type === 'file' && onAttachToAI && (
-                  <DropdownMenuItem onClick={() => onAttachToAI(file)}>
-                    <Sparkles className="w-3 h-3 mr-2 text-purple-500" />
-                    Attach to AI
-                  </DropdownMenuItem>
-                )}
-                {file.type === 'file' && onShowTimeline && (
-                  <DropdownMenuItem onClick={() => onShowTimeline(file)}>
-                    <Clock className="w-3 h-3 mr-2 text-blue-500" />
-                    Timeline
-                  </DropdownMenuItem>
-                )}
+              <DropdownMenuContent className="w-40">
                 <DropdownMenuItem onClick={() => startEdit(file)}>
                   <Edit3 className="w-3 h-3 mr-2" />
                   Rename
