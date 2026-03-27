@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { YouTubeSection } from './YouTubeSection';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { getFileLanguageIcon } from '@/utils/languageIcons';
 
 
 // Default empty file structure
@@ -41,12 +42,13 @@ export const SmartCodeEditor = () => {
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [showFind, setShowFind] = useState(false);
   const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
+  const [errorCount, setErrorCount] = useState(0);
+  const [errorLines, setErrorLines] = useState<number[]>([]);
   const multiTerminalRef = useRef<MultiTerminalHandle>(null);
 
   // Auto-save functionality
   useEffect(() => {
     const saveInterval = setInterval(() => {
-      // Save files to localStorage
       localStorage.setItem('smart-editor-files', JSON.stringify(files));
       localStorage.setItem('smart-editor-tabs', JSON.stringify(openTabs));
       localStorage.setItem('smart-editor-active-tab', activeTab);
@@ -113,7 +115,6 @@ export const SmartCodeEditor = () => {
 
     setFiles(updateFileInTree(files));
     
-    // Update open tabs
     setOpenTabs(tabs => 
       tabs.map(tab => 
         tab.id === fileId ? { ...tab, content } : tab
@@ -123,13 +124,11 @@ export const SmartCodeEditor = () => {
 
   const handleFileSelect = (file: FileNode) => {
     if (file.type === 'file') {
-      // Add to open tabs if not already open
       if (!openTabs.find(tab => tab.id === file.id)) {
         setOpenTabs(prev => [...prev, file]);
       }
       setActiveTab(file.id);
 
-      // If HTML file, try to open common linked files too
       if (file.language === 'html') {
         const css = files.flatMap(f => f.type === 'folder' ? (f.children || []) : [f]).find(f => f.name === 'styles.css');
         const js = files.flatMap(f => f.type === 'folder' ? (f.children || []) : [f]).find(f => f.name === 'script.js');
@@ -148,7 +147,22 @@ export const SmartCodeEditor = () => {
     }
   };
 
+  // Check for duplicate names in the same level
+  const isDuplicateName = (name: string, parentId?: string): boolean => {
+    const siblings = parentId 
+      ? (findFileById(files, parentId)?.children || [])
+      : files;
+    return siblings.some(f => f.name.toLowerCase() === name.toLowerCase());
+  };
+
   const handleFileCreate = (name: string, type: 'file' | 'folder', parentId?: string) => {
+    // Prevent duplicate names
+    if (isDuplicateName(name, parentId)) {
+      const ext = name.includes('.') ? '.' + name.split('.').pop() : '';
+      const baseName = name.replace(ext, '');
+      name = `${baseName}_1${ext}`;
+    }
+
     const newNode: FileNode = {
       id: `${type}-${Date.now()}`,
       name,
@@ -158,12 +172,10 @@ export const SmartCodeEditor = () => {
       children: type === 'folder' ? [] : undefined
     };
 
-    // Insert into root (basic). Could be extended to use parentId.
     setFiles(prev => [...prev, newNode]);
   };
 
   const handleFileDelete = (fileId: string) => {
-    // Remove from files and tabs
     const filterFiles = (fileList: FileNode[]): FileNode[] => {
       return fileList.filter(file => {
         if (file.id === fileId) return false;
@@ -212,7 +224,6 @@ export const SmartCodeEditor = () => {
     const moveNodeInTree = (fileList: FileNode[], dragId: string, targetFolderId: string | null): FileNode[] => {
       let draggedNode: FileNode | null = null;
       
-      // First, find and remove the dragged node
       const removeNode = (files: FileNode[]): FileNode[] => {
         return files.filter(file => {
           if (file.id === dragId) {
@@ -230,12 +241,10 @@ export const SmartCodeEditor = () => {
       
       if (!draggedNode) return fileList;
       
-      // If targetFolderId is null, move to root
       if (targetFolderId === null) {
         return [...updatedFiles, draggedNode];
       }
       
-      // Otherwise, find the target folder and add the node to its children
       const addToFolder = (files: FileNode[]): FileNode[] => {
         return files.map(file => {
           if (file.id === targetFolderId && file.type === 'folder') {
@@ -320,7 +329,6 @@ export const SmartCodeEditor = () => {
         const fileName = parts.pop() as string;
         const folders = parts;
         ensureFolder(folders, root);
-        // Navigate to target folder
         let nodes: FileNode[] = root;
         for (const f of folders) {
           const next = nodes.find((n) => n.type === 'folder' && n.name === f) as FileNode;
@@ -344,7 +352,6 @@ export const SmartCodeEditor = () => {
     const fileName = parts.pop() || 'untitled.txt';
     setFiles((prev) => {
       const root = [...prev];
-      // Ensure folder chain exists
       let nodes: FileNode[] = root;
       for (const segment of parts) {
         let folder = nodes.find((n) => n.type === 'folder' && n.name === segment);
@@ -364,6 +371,7 @@ export const SmartCodeEditor = () => {
       return root;
     });
   };
+
   const exportProject = async () => {
     try {
       const JSZip = (await import('jszip')).default;
@@ -395,7 +403,7 @@ export const SmartCodeEditor = () => {
   };
 
   const publishProject = () => {
-    window.open('https://netlify.com', '_blank');
+    window.open('https://getlivenow.lovable.app', '_blank');
   };
 
   const handleFindResultClick = (fileId: string, line: number) => {
@@ -420,6 +428,11 @@ export const SmartCodeEditor = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Handle errors from code editor
+  const handleEditorErrors = (errors: { line: number; message: string }[]) => {
+    setErrorCount(errors.length);
+    setErrorLines(errors.map(e => e.line));
+  };
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-editor-bg">
@@ -480,20 +493,20 @@ export const SmartCodeEditor = () => {
                       `}
                       onClick={() => setActiveTab(tab.id)}
                     >
-                      <FileText className="w-3 h-3 flex-shrink-0" />
+                      {getFileLanguageIcon(tab.name, 'w-3.5 h-3.5 flex-shrink-0')}
                       <span className="text-xs truncate">{tab.name}</span>
-                      {(tab.language === 'javascript' || tab.language === 'typescript' || tab.language === 'python') && (
+                      {['javascript', 'typescript', 'python', 'java', 'c', 'cpp'].includes(tab.language || '') && (
                         <Button
                           variant="ghost"
                           size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!terminalVisible) setTerminalVisible(true);
-                          setTimeout(() => {
-                            multiTerminalRef.current?.runCode(tab.language, tab.content || '');
-                          }, 100);
-                        }}
-                          className="h-4 w-4 p-0 opacity-0 group-hover:opacity-60 hover:opacity-100 text-editor-success"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!terminalVisible) setTerminalVisible(true);
+                            setTimeout(() => {
+                              multiTerminalRef.current?.runCode(tab.language || '', tab.content || '');
+                            }, 100);
+                          }}
+                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 bg-green-500/20 hover:bg-green-500/40 text-green-400 rounded-sm"
                           title="Run code"
                         >
                           ▶
@@ -516,19 +529,20 @@ export const SmartCodeEditor = () => {
               </div>
               
               {/* Code Editor */}
-              <div className="flex-1">
+              <div className="flex-1 overflow-hidden">
                 {activeFile ? (
                   <CodeEditor
                     value={activeFile.content || ''}
                     onChange={(content) => updateFileContent(activeFile.id, content)}
                     language={activeFile.language || 'plaintext'}
                     fileName={activeFile.name}
-                  onRun={(code, lang) => {
-                    if (!terminalVisible) setTerminalVisible(true);
-                    setTimeout(() => {
-                      multiTerminalRef.current?.runCode(lang, code);
-                    }, 100);
-                  }}
+                    onRun={(code, lang) => {
+                      if (!terminalVisible) setTerminalVisible(true);
+                      setTimeout(() => {
+                        multiTerminalRef.current?.runCode(lang, code);
+                      }, 100);
+                    }}
+                    onErrors={handleEditorErrors}
                   />
                 ) : (
                   <div className="h-full flex items-center justify-center text-editor-text-muted">
@@ -542,31 +556,49 @@ export const SmartCodeEditor = () => {
             </div>
           </ResizablePanel>
           
-          {/* Right Panel - Preview or AI */}
+          {/* Right Panel - Preview / AI / YouTube — each tab fills the panel exclusively */}
           {rightPanelVisible && (
             <>
               <ResizableHandle withHandle />
               <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
-                <Tabs 
-                  value={activeRightTab} 
-                  onValueChange={setActiveRightTab} 
-                  className="h-full flex flex-col"
-                >
-                  <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-editor-sidebar">
-                    <TabsList className="bg-editor-panel h-8">
-                      <TabsTrigger value="preview" className="text-xs h-6 px-3">
-                        <Monitor className="w-3 h-3 mr-1" />
+                <div className="h-full flex flex-col overflow-hidden">
+                  {/* Tab bar */}
+                  <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-editor-sidebar flex-shrink-0">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setActiveRightTab('preview')}
+                        className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-md transition-all ${
+                          activeRightTab === 'preview' 
+                            ? 'bg-editor-accent/20 text-editor-accent font-medium' 
+                            : 'text-editor-text-muted hover:text-editor-text hover:bg-editor-active-tab'
+                        }`}
+                      >
+                        <Monitor className="w-3 h-3" />
                         Preview
-                      </TabsTrigger>
-                      <TabsTrigger value="ai" className="text-xs h-6 px-3">
-                        <Sparkles className="w-3 h-3 mr-1" />
-                        AI Assistant
-                      </TabsTrigger>
-                      <TabsTrigger value="youtube" className="text-xs h-6 px-3">
-                        <Youtube className="w-3 h-3 mr-1" />
+                      </button>
+                      <button
+                        onClick={() => setActiveRightTab('ai')}
+                        className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-md transition-all ${
+                          activeRightTab === 'ai' 
+                            ? 'bg-purple-500/20 text-purple-400 font-medium' 
+                            : 'text-editor-text-muted hover:text-editor-text hover:bg-editor-active-tab'
+                        }`}
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        AI
+                      </button>
+                      <button
+                        onClick={() => setActiveRightTab('youtube')}
+                        className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-md transition-all ${
+                          activeRightTab === 'youtube' 
+                            ? 'bg-red-500/20 text-red-400 font-medium' 
+                            : 'text-editor-text-muted hover:text-editor-text hover:bg-editor-active-tab'
+                        }`}
+                      >
+                        <Youtube className="w-3 h-3" />
                         YouTube
-                      </TabsTrigger>
-                    </TabsList>
+                      </button>
+                    </div>
                     
                     <Button
                       variant="ghost"
@@ -579,52 +611,40 @@ export const SmartCodeEditor = () => {
                     </Button>
                   </div>
 
-                   <TabsContent value="preview" className="flex-1 m-0 h-full">
-                    <LivePreview
-                      htmlContent={previewContent.html} 
-                      cssContent={previewContent.css} 
-                      jsContent={previewContent.js}
-                      activeFileName={openTabs.find(tab => tab.id === activeTab)?.name}
-                    />
-                  </TabsContent>
-                  
-                   <TabsContent value="ai" className="flex-1 m-0 h-full">
-                    <ModernAIAssistant
-                      onCodeInsert={(code) => {
-                        if (activeTab && openTabs.find(tab => tab.id === activeTab)) {
-                          const file = openTabs.find(tab => tab.id === activeTab);
-                          if (file) {
-                            updateFileContent(file.id, code);
+                  {/* Tab content — only ONE visible at a time, takes full remaining height */}
+                  <div className="flex-1 overflow-hidden relative">
+                    <div className={`absolute inset-0 ${activeRightTab === 'preview' ? 'block' : 'hidden'}`}>
+                      <LivePreview
+                        htmlContent={previewContent.html} 
+                        cssContent={previewContent.css} 
+                        jsContent={previewContent.js}
+                        activeFileName={openTabs.find(tab => tab.id === activeTab)?.name}
+                      />
+                    </div>
+                    <div className={`absolute inset-0 ${activeRightTab === 'ai' ? 'flex flex-col' : 'hidden'}`}>
+                      <ModernAIAssistant
+                        onCodeInsert={(code) => {
+                          if (activeTab && openTabs.find(tab => tab.id === activeTab)) {
+                            const file = openTabs.find(tab => tab.id === activeTab);
+                            if (file) {
+                              updateFileContent(file.id, code);
+                            }
                           }
-                        }
-                      }}
-                    />
-                  </TabsContent>
-                  
-                   <TabsContent value="youtube" className="flex-1 m-0 h-full">
-                    <YouTubeSection 
-                      onPlayVideo={(url) => {
-                        setYoutubeUrl(url);
-                        setShowYouTube(true);
-                      }}
-                    />
-                  </TabsContent>
-                </Tabs>
+                        }}
+                        attachedFile={activeFile ? { name: activeFile.name, content: activeFile.content || '' } : null}
+                      />
+                    </div>
+                    <div className={`absolute inset-0 ${activeRightTab === 'youtube' ? 'block' : 'hidden'}`}>
+                      <YouTubeSection 
+                        onPlayVideo={(url) => {
+                          setYoutubeUrl(url);
+                          setShowYouTube(true);
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
               </ResizablePanel>
-              
-              {/* Find Panel */}
-              {showFind && (
-                <>
-                  <ResizableHandle withHandle />
-                  <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-                    <FindInFiles
-                      files={files}
-                      onResultClick={handleFindResultClick}
-                      onClose={() => setShowFind(false)}
-                    />
-                  </ResizablePanel>
-                </>
-              )}
             </>
           )}
         </ResizablePanelGroup>
@@ -634,7 +654,7 @@ export const SmartCodeEditor = () => {
           <YouTubePlayer url={youtubeUrl} onClose={() => setShowYouTube(false)} />
         )}
         
-        {/* Bottom Terminal - persist mounted */}
+        {/* Bottom Terminal */}
         <div className="border-t border-border bg-editor-bg flex flex-col transition-all duration-200" style={{ height: terminalVisible ? '300px' : '0px', overflow: 'hidden' }}>
           <div className="flex-1 min-h-0">
             <MultiTerminal 
@@ -651,14 +671,14 @@ export const SmartCodeEditor = () => {
           activeFile={activeFile}
           cursorPosition={cursorPosition}
           totalLines={activeFile?.content?.split('\n').length || 0}
-          errors={0}
+          errors={errorCount}
+          errorLines={errorLines}
           warnings={0}
           onHostClick={() => window.open('https://getlivenow.lovable.app', '_blank')}
         />
       </div>
       
       {/* Toggle Buttons */}
-      {/* Top-right: open right panel */}
       {!rightPanelVisible && (
         <div className="fixed top-16 right-3 z-50">
           <Button
@@ -670,7 +690,6 @@ export const SmartCodeEditor = () => {
           </Button>
         </div>
       )}
-      {/* Bottom-left: open terminal */}
       {!terminalVisible && (
         <div className="fixed bottom-4 left-4 z-50">
           <Button
