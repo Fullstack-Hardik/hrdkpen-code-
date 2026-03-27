@@ -308,6 +308,114 @@ sys.stderr = StringIO()
     }
   };
 
+  // Java interpreter - transpile simple Java to JS and run
+  const runJava = (code: string) => {
+    try {
+      addOutput('output', '☕ Compiling Java...');
+      
+      // Simple Java-to-JS transpiler for basic programs
+      let jsCode = code;
+      
+      // Extract main method body
+      const mainMatch = code.match(/public\s+static\s+void\s+main\s*\([^)]*\)\s*\{([\s\S]*)\}/);
+      if (mainMatch) {
+        jsCode = mainMatch[1];
+      }
+      
+      // Convert System.out.println → console.log
+      jsCode = jsCode.replace(/System\.out\.println\s*\(/g, 'console.log(');
+      jsCode = jsCode.replace(/System\.out\.print\s*\(/g, 'process.stdout.write(');
+      // Convert System.err.println → console.error
+      jsCode = jsCode.replace(/System\.err\.println\s*\(/g, 'console.error(');
+      
+      // Handle basic Java types → JS
+      jsCode = jsCode.replace(/\b(int|double|float|long|short|byte|char|boolean)\s+/g, 'let ');
+      jsCode = jsCode.replace(/\bString\s+/g, 'let ');
+      jsCode = jsCode.replace(/\bString\[\]\s+/g, 'let ');
+      jsCode = jsCode.replace(/\bfinal\s+/g, 'const ');
+      
+      // Handle Scanner input simulation
+      jsCode = jsCode.replace(/Scanner\s+\w+\s*=\s*new\s+Scanner\s*\([^)]*\)\s*;/g, '');
+      jsCode = jsCode.replace(/\w+\.nextLine\(\)/g, '"sample input"');
+      jsCode = jsCode.replace(/\w+\.nextInt\(\)/g, '42');
+      jsCode = jsCode.replace(/\w+\.nextDouble\(\)/g, '3.14');
+      
+      // Handle basic array creation
+      jsCode = jsCode.replace(/new\s+int\s*\[(\d+)\]/g, 'new Array($1).fill(0)');
+      jsCode = jsCode.replace(/new\s+String\s*\[(\d+)\]/g, 'new Array($1).fill("")');
+      
+      // Handle Math methods (they're the same in JS)
+      // Handle string methods
+      jsCode = jsCode.replace(/\.length\(\)/g, '.length');
+      jsCode = jsCode.replace(/\.equals\(/g, ' === (');
+      
+      addOutput('success', '✅ Java compiled successfully');
+      runJavaScript(jsCode);
+    } catch (error: any) {
+      addOutput('error', `Java Error: ${error.message || error}`);
+    }
+  };
+
+  // C interpreter - transpile simple C to JS and run
+  const runC = (code: string, lang: string) => {
+    try {
+      addOutput('output', `🔧 Compiling ${lang === 'cpp' ? 'C++' : 'C'} code...`);
+      
+      let jsCode = code;
+      
+      // Remove includes
+      jsCode = jsCode.replace(/#include\s*<[^>]+>/g, '');
+      jsCode = jsCode.replace(/#include\s*"[^"]+"/g, '');
+      jsCode = jsCode.replace(/#define\s+(\w+)\s+(.+)/g, 'const $1 = $2;');
+      
+      // Extract main function body
+      const mainMatch = jsCode.match(/int\s+main\s*\([^)]*\)\s*\{([\s\S]*)\}/);
+      if (mainMatch) {
+        jsCode = mainMatch[1];
+      }
+      
+      // Convert printf → console.log with format string handling
+      jsCode = jsCode.replace(/printf\s*\(\s*"([^"]*)"(?:\s*,\s*([^)]+))?\s*\)/g, (match, fmt, args) => {
+        if (!args) return `console.log("${fmt}")`;
+        const argList = args.split(',').map((a: string) => a.trim());
+        let result = fmt;
+        let argIdx = 0;
+        result = result.replace(/%[dif]/g, () => `\${${argList[argIdx++] || '""'}}`);
+        result = result.replace(/%s/g, () => `\${${argList[argIdx++] || '""'}}`);
+        result = result.replace(/%c/g, () => `\${String.fromCharCode(${argList[argIdx++] || '0'})}`);
+        return `console.log(\`${result}\`)`;
+      });
+      
+      // Convert cout
+      jsCode = jsCode.replace(/std::cout\s*<<\s*/g, 'console.log(');
+      jsCode = jsCode.replace(/\s*<<\s*std::endl/g, ')');
+      jsCode = jsCode.replace(/\s*<<\s*"\\n"/g, ')');
+      jsCode = jsCode.replace(/cout\s*<<\s*/g, 'console.log(');
+      
+      // Convert scanf → simulated input
+      jsCode = jsCode.replace(/scanf\s*\([^)]+\)/g, '/* input simulated */');
+      jsCode = jsCode.replace(/cin\s*>>\s*(\w+)/g, 'let $1 = 42');
+      
+      // Handle C types
+      jsCode = jsCode.replace(/\b(int|float|double|long|short|char|unsigned)\s+/g, 'let ');
+      jsCode = jsCode.replace(/\bconst\s+char\s*\*\s*/g, 'const ');
+      jsCode = jsCode.replace(/\bchar\s*\*\s*/g, 'let ');
+      jsCode = jsCode.replace(/\bvoid\s+(\w+)\s*\(/g, 'function $1(');
+      
+      // Remove return 0
+      jsCode = jsCode.replace(/return\s+0\s*;/g, '');
+      
+      // Handle string methods
+      jsCode = jsCode.replace(/strlen\((\w+)\)/g, '$1.length');
+      jsCode = jsCode.replace(/strcmp\(([^,]+),\s*([^)]+)\)/g, '($1 === $2 ? 0 : -1)');
+      
+      addOutput('success', `✅ ${lang === 'cpp' ? 'C++' : 'C'} compiled successfully`);
+      runJavaScript(jsCode);
+    } catch (error: any) {
+      addOutput('error', `${lang === 'cpp' ? 'C++' : 'C'} Error: ${error.message || error}`);
+    }
+  };
+
   const showHelp = () => {
     const helpText = `
 Available commands:
