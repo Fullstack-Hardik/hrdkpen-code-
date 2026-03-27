@@ -81,7 +81,7 @@ export const FileExplorer = ({
 
   const canRunFile = (file: FileNode): boolean => {
     const ext = file.name.split('.').pop()?.toLowerCase();
-    return ['js', 'jsx', 'ts', 'tsx', 'py', 'python'].includes(ext || '');
+    return ['js', 'jsx', 'ts', 'tsx', 'py', 'python', 'java', 'c', 'cpp'].includes(ext || '');
   };
 
   const startEdit = (file: FileNode) => {
