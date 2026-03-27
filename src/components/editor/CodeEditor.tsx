@@ -13,7 +13,7 @@ interface CodeEditorProps {
   onErrors?: (errors: { line: number; message: string }[]) => void;
 }
 
-export const CodeEditor = ({ value, onChange, language, fileName, onRun }: CodeEditorProps) => {
+export const CodeEditor = ({ value, onChange, language, fileName, onRun, onErrors }: CodeEditorProps) => {
   const editorRef = useRef<any>(null);
   const [isRunning, setIsRunning] = useState(false);
 
