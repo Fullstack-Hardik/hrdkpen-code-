@@ -10,6 +10,7 @@ interface CodeEditorProps {
   language: string;
   fileName: string;
   onRun?: (code: string, language: string, fileName: string) => void;
+  onErrors?: (errors: { line: number; message: string }[]) => void;
 }
 
 export const CodeEditor = ({ value, onChange, language, fileName, onRun }: CodeEditorProps) => {
