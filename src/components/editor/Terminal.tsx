@@ -540,6 +540,14 @@ Examples:
       addOutput('input', `$ Running Python code...`);
       runPython(code);
     },
+    runJava: (code: string) => {
+      addOutput('input', `$ Running Java code...`);
+      runJava(code);
+    },
+    runC: (code: string, lang: string) => {
+      addOutput('input', `$ Running ${lang === 'cpp' ? 'C++' : 'C'} code...`);
+      runC(code, lang);
+    },
     execute: executeCommand
   }));
 
