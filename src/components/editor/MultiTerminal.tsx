@@ -51,11 +51,13 @@ export const MultiTerminal = forwardRef<MultiTerminalHandle, MultiTerminalProps>
             handle.runPython(code);
             break;
           case 'java':
-            handle.execute(`echo "☕ Java execution coming soon! Use Judge0 API for now"`);
+            handle.execute(`Running Java code...`);
+            handle.runJava(code);
             break;
           case 'c':
           case 'cpp':
-            handle.execute(`echo "🔧 C/C++ execution coming soon! Use WASM or Judge0 API"`);
+            handle.execute(`Running C/C++ code...`);
+            handle.runC(code, language);
             break;
           default:
             handle.execute(`echo "Language ${language} not yet supported"`);

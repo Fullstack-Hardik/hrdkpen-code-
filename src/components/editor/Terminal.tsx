@@ -35,6 +35,8 @@ export type TerminalHandle = {
   runJS: (code: string) => void;
   runTS: (code: string) => void;
   runPython: (code: string) => void;
+  runJava: (code: string) => void;
+  runC: (code: string, lang: string) => void;
   execute: (cmd: string) => void;
 };
 export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onExecuteCode, getFileSystem, name = 'Terminal', showHeader = true, onExit, onCreateFile }, ref) => {
