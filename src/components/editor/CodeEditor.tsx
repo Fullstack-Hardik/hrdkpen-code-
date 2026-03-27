@@ -130,6 +130,18 @@ export const CodeEditor = ({ value, onChange, language, fileName, onRun, onError
       provideCompletionItems: () => ({ suggestions: cppSuggestions })
     });
     
+    // Track markers for error reporting
+    const updateErrors = () => {
+      const markers = monaco.editor.getModelMarkers({ resource: editor.getModel()?.uri });
+      const errorMarkers = markers
+        .filter((m: any) => m.severity === monaco.MarkerSeverity.Error)
+        .map((m: any) => ({ line: m.startLineNumber, message: m.message }));
+      onErrors?.(errorMarkers);
+    };
+
+    // Listen for marker changes
+    monaco.editor.onDidChangeMarkers(() => updateErrors());
+    
     // Add keyboard shortcuts
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       handleSave();
