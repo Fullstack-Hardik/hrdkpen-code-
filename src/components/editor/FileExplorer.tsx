@@ -4,7 +4,6 @@ import { Input } from '@/components/ui/input';
 import { 
   Folder, 
   FolderOpen, 
-  FileText, 
   Plus, 
   FolderPlus, 
   MoreHorizontal,
@@ -13,6 +12,7 @@ import {
   Upload,
   Play
 } from 'lucide-react';
+import { getFileLanguageIcon } from '@/utils/languageIcons';
 import {
   DropdownMenu,
   DropdownMenuContent,
