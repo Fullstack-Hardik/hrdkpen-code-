@@ -4,7 +4,6 @@ import { Input } from '@/components/ui/input';
 import { 
   Folder, 
   FolderOpen, 
-  FileText, 
   Plus, 
   FolderPlus, 
   MoreHorizontal,
@@ -13,6 +12,7 @@ import {
   Upload,
   Play
 } from 'lucide-react';
+import { getFileLanguageIcon } from '@/utils/languageIcons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -76,42 +76,12 @@ export const FileExplorer = ({
         <FolderOpen className="w-4 h-4 text-editor-accent" /> : 
         <Folder className="w-4 h-4 text-editor-accent" />;
     }
-    
-    // File type icons based on extension
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    const iconClass = "w-4 h-4";
-    
-    switch (ext) {
-      case 'html':
-        return <i className={`fab fa-html5 ${iconClass} text-orange-500`} />;
-      case 'css':
-        return <i className={`fab fa-css3-alt ${iconClass} text-blue-500`} />;
-      case 'js':
-        return <i className={`fab fa-js-square ${iconClass} text-yellow-500`} />;
-      case 'ts':
-        return <i className={`fas fa-code ${iconClass} text-blue-600`} />;
-      case 'tsx':
-        return <i className={`fas fa-code ${iconClass} text-cyan-500`} />;
-      case 'jsx':
-        return <i className={`fas fa-code ${iconClass} text-cyan-400`} />;
-      case 'json':
-        return <i className={`fas fa-brackets-curly ${iconClass} text-green-500`} />;
-      case 'py':
-        return <i className={`fab fa-python ${iconClass} text-green-600`} />;
-      case 'png':
-      case 'jpg':
-      case 'jpeg':
-      case 'gif':
-      case 'svg':
-        return <i className={`fas fa-image ${iconClass} text-purple-500`} />;
-      default:
-        return <FileText className={`${iconClass} text-editor-text-muted`} />;
-    }
+    return getFileLanguageIcon(file.name);
   };
 
   const canRunFile = (file: FileNode): boolean => {
     const ext = file.name.split('.').pop()?.toLowerCase();
-    return ['js', 'jsx', 'ts', 'tsx', 'py', 'python'].includes(ext || '');
+    return ['js', 'jsx', 'ts', 'tsx', 'py', 'python', 'java', 'c', 'cpp'].includes(ext || '');
   };
 
   const startEdit = (file: FileNode) => {

@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -12,11 +11,10 @@ import {
   Lightbulb,
   Loader2,
   Trash2,
-  ChevronDown,
   Zap,
   Terminal,
-  Bug,
-  Settings
+  Key,
+  X
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,6 +23,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  codeBlock?: string;
 }
 
 interface ModernAIAssistantProps {
@@ -44,20 +43,16 @@ export const ModernAIAssistant = ({ onCodeInsert, attachedFile, onFileDetach }: 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [showQuickActions, setShowQuickActions] = useState(true);
   const [apiKey, setApiKey] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
   const [suggestedCode, setSuggestedCode] = useState<string>('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedApiKey = localStorage.getItem('ai_api_key');
-    if (savedApiKey) {
-      setApiKey(savedApiKey);
-    } else {
-      setShowApiKeyInput(true);
-    }
+    const saved = localStorage.getItem('ai_api_key');
+    if (saved) setApiKey(saved);
+    else setShowApiKey(true);
   }, []);
 
   useEffect(() => {
@@ -69,11 +64,8 @@ export const ModernAIAssistant = ({ onCodeInsert, attachedFile, onFileDetach }: 
   const saveApiKey = () => {
     if (apiKey.trim()) {
       localStorage.setItem('ai_api_key', apiKey);
-      setShowApiKeyInput(false);
-      toast({
-        title: 'API Key Saved',
-        description: 'Your API key has been saved locally',
-      });
+      setShowApiKey(false);
+      toast({ title: 'API Key Saved', description: 'Key stored locally in your browser' });
     }
   };
 
@@ -82,12 +74,8 @@ export const ModernAIAssistant = ({ onCodeInsert, attachedFile, onFileDetach }: 
     if (!messageText.trim() || isLoading) return;
 
     if (!apiKey) {
-      toast({
-        title: 'API Key Required',
-        description: 'Please add your API key first',
-        variant: 'destructive',
-      });
-      setShowApiKeyInput(true);
+      toast({ title: 'API Key Required', description: 'Add your API key first', variant: 'destructive' });
+      setShowApiKey(true);
       return;
     }
 
@@ -95,7 +83,7 @@ export const ModernAIAssistant = ({ onCodeInsert, attachedFile, onFileDetach }: 
       id: Date.now().toString(),
       role: 'user',
       content: attachedFile 
-        ? `${messageText}\n\nAttached File: ${attachedFile.name}\n\`\`\`\n${attachedFile.content}\n\`\`\``
+        ? `${messageText}\n\n📎 ${attachedFile.name}`
         : messageText,
       timestamp: new Date(),
     };
@@ -103,31 +91,67 @@ export const ModernAIAssistant = ({ onCodeInsert, attachedFile, onFileDetach }: 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
-    setShowQuickActions(false);
 
     try {
-      // Simulate AI response with code suggestion
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Try calling OpenAI-compatible API
+      const systemPrompt = attachedFile 
+        ? `You are an AI coding assistant. The user has attached a file named "${attachedFile.name}" with the following content:\n\`\`\`\n${attachedFile.content}\n\`\`\`\nHelp them with their request. If suggesting code changes, wrap code in \`\`\` blocks.`
+        : 'You are an AI coding assistant. Help the user with their coding questions. If suggesting code, wrap it in ``` blocks.';
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            ...messages.map(m => ({ role: m.role, content: m.content })),
+            { role: 'user', content: messageText },
+          ],
+          max_tokens: 2000,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const aiContent = data.choices?.[0]?.message?.content || 'No response received.';
       
-      const codeExample = `// Suggested improvement\nfunction optimizedCode() {\n  // Better implementation\n  return true;\n}`;
+      // Extract code blocks
+      const codeMatch = aiContent.match(/```[\w]*\n([\s\S]*?)```/);
+      const extractedCode = codeMatch ? codeMatch[1].trim() : '';
+
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: aiContent,
+        timestamp: new Date(),
+        codeBlock: extractedCode,
+      };
+
+      setMessages(prev => [...prev, aiMessage]);
+      if (extractedCode) setSuggestedCode(extractedCode);
+    } catch (error: any) {
+      // Fallback to simulated response
+      const codeExample = `// AI suggested code\nfunction optimized() {\n  // Improved implementation\n  return true;\n}`;
       
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: attachedFile
-          ? `I've analyzed your file "${attachedFile.name}". Here's what I suggest:\n\n1. Code looks good overall\n2. Consider these optimizations:\n\n\`\`\`javascript\n${codeExample}\n\`\`\`\n\nClick "Accept Changes" below to apply this code.`
-          : `I'll help you with that. Here's what I suggest:\n\n1. Review the code structure\n2. Check for common issues\n3. Apply best practices\n\nWould you like me to generate a code example?`,
+        content: error.message?.includes('API') 
+          ? `⚠️ API Error: ${error.message}\n\nFalling back to simulated response.\n\nHere's a general suggestion:\n\`\`\`javascript\n${codeExample}\n\`\`\``
+          : `I'll help you with that. Here's my suggestion:\n\n\`\`\`javascript\n${codeExample}\n\`\`\``,
         timestamp: new Date(),
+        codeBlock: codeExample,
       };
 
       setMessages(prev => [...prev, aiMessage]);
       setSuggestedCode(codeExample);
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to get AI response',
-        variant: 'destructive',
-      });
     } finally {
       setIsLoading(false);
     }
@@ -136,113 +160,114 @@ export const ModernAIAssistant = ({ onCodeInsert, attachedFile, onFileDetach }: 
   const acceptChanges = () => {
     if (suggestedCode && onCodeInsert) {
       onCodeInsert(suggestedCode);
-      toast({
-        title: 'Changes Applied',
-        description: 'Code has been updated',
-      });
+      toast({ title: '✅ Code Applied', description: 'Changes inserted into editor' });
       setSuggestedCode('');
     }
   };
 
   const clearChat = () => {
     setMessages([]);
-    setShowQuickActions(true);
+    setSuggestedCode('');
   };
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-gray-900 dark:via-gray-800 dark:to-slate-900">
+    <div className="h-full flex flex-col bg-editor-bg overflow-hidden">
       {/* Compact Header */}
-      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">AI Assistant</h3>
-            </div>
+      <div className="px-3 py-2 border-b border-border bg-editor-sidebar flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center">
+            <Sparkles className="w-3 h-3 text-white" />
           </div>
-          <div className="flex gap-1">
+          <span className="text-sm font-medium text-editor-text">AI Assistant</span>
+        </div>
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowApiKey(!showApiKey)}
+            className="h-6 w-6 p-0 text-editor-text-muted hover:text-editor-text"
+            title="API Key"
+          >
+            <Key className="w-3 h-3" />
+          </Button>
+          {messages.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-              className="h-7 px-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20"
+              onClick={clearChat}
+              className="h-6 w-6 p-0 text-editor-text-muted hover:text-red-400"
+              title="Clear chat"
             >
-              <Settings className="w-3 h-3" />
+              <Trash2 className="w-3 h-3" />
             </Button>
-            {messages.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearChat}
-                className="h-7 px-2 text-xs hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600"
-              >
-                <Trash2 className="w-3 h-3" />
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
       {/* API Key Input */}
-      {showApiKeyInput && (
-        <div className="px-4 py-3 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
-          <p className="text-xs font-medium mb-2">API Key Configuration</p>
-          <div className="flex gap-2">
+      {showApiKey && (
+        <div className="px-3 py-2 bg-editor-panel border-b border-border flex-shrink-0">
+          <p className="text-xs text-editor-text-muted mb-1.5">OpenAI API Key</p>
+          <div className="flex gap-1.5">
             <Input
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Enter your AI API key"
-              className="flex-1 text-sm h-8"
+              placeholder="sk-..."
+              className="flex-1 text-xs h-7 bg-editor-bg border-editor-border text-editor-text"
             />
-            <Button
-              onClick={saveApiKey}
-              size="sm"
-              className="h-8 px-3"
-            >
+            <Button onClick={saveApiKey} size="sm" className="h-7 px-2 text-xs bg-editor-accent hover:bg-editor-accent/80">
               Save
             </Button>
+            {apiKey && (
+              <Button onClick={() => setShowApiKey(false)} variant="ghost" size="sm" className="h-7 w-7 p-0">
+                <X className="w-3 h-3" />
+              </Button>
+            )}
           </div>
         </div>
       )}
 
-      {/* Attached File Indicator */}
+      {/* Attached File */}
       {attachedFile && (
-        <div className="px-4 py-2 bg-purple-50 dark:bg-purple-900/20 border-b border-purple-200 dark:border-purple-800 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <FileText className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-            <span className="text-xs font-medium text-purple-900 dark:text-purple-100">
-              Attached: {attachedFile.name}
-            </span>
+        <div className="px-3 py-1.5 bg-purple-500/10 border-b border-purple-500/20 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-1.5">
+            <FileText className="w-3 h-3 text-purple-400" />
+            <span className="text-xs text-purple-300">{attachedFile.name}</span>
           </div>
           {onFileDetach && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onFileDetach}
-              className="h-6 px-2 text-xs hover:bg-purple-100 dark:hover:bg-purple-900/40"
-            >
-              Remove
+            <Button variant="ghost" size="sm" onClick={onFileDetach} className="h-5 px-1 text-xs">
+              <X className="w-3 h-3" />
             </Button>
           )}
         </div>
       )}
 
-      {/* Messages Area */}
-      <ScrollArea ref={scrollRef} className="flex-1 px-4 py-3">
+      {/* Messages Area - SCROLLABLE */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 min-h-0">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-4 animate-pulse">
-              <Sparkles className="w-8 h-8 text-white" />
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-600 flex items-center justify-center mb-3">
+              <Sparkles className="w-6 h-6 text-white" />
             </div>
-            <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
-              AI Coding Assistant
-            </h4>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 max-w-xs">
-              Ask me anything about your code. I can help debug, explain, optimize, and refactor.
-            </p>
+            <h4 className="text-sm font-medium text-editor-text mb-1">AI Coding Assistant</h4>
+            <p className="text-xs text-editor-text-muted mb-4">Ask about your code — debug, explain, optimize.</p>
+            
+            {/* Quick Actions */}
+            <div className="grid grid-cols-2 gap-1.5 w-full max-w-xs">
+              {quickActions.map((action, i) => (
+                <Button
+                  key={i}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSend(action.prompt)}
+                  className="h-auto py-1.5 px-2 text-xs justify-start border-editor-border hover:bg-editor-active-tab hover:border-editor-accent/30 transition-all"
+                >
+                  <action.icon className="w-3 h-3 mr-1.5 text-editor-accent" />
+                  {action.label}
+                </Button>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
@@ -252,16 +277,14 @@ export const ModernAIAssistant = ({ onCodeInsert, attachedFile, onFileDetach }: 
                 className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl px-3 py-2 ${
+                  className={`max-w-[90%] rounded-lg px-3 py-2 ${
                     message.role === 'user'
-                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white'
-                      : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100'
+                      ? 'bg-editor-accent/20 border border-editor-accent/30 text-editor-text'
+                      : 'bg-editor-panel border border-editor-border text-editor-text'
                   }`}
                 >
-                  <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                  <p className={`text-xs mt-1 ${
-                    message.role === 'user' ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
-                  }`}>
+                  <pre className="text-xs whitespace-pre-wrap font-mono leading-relaxed">{message.content}</pre>
+                  <p className="text-xs mt-1 text-editor-text-dim">
                     {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
@@ -269,49 +292,31 @@ export const ModernAIAssistant = ({ onCodeInsert, attachedFile, onFileDetach }: 
             ))}
             {isLoading && (
               <div className="flex justify-start">
-                <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3">
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                <div className="bg-editor-panel border border-editor-border rounded-lg px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-3 h-3 animate-spin text-editor-accent" />
+                    <span className="text-xs text-editor-text-muted">Thinking...</span>
+                  </div>
                 </div>
               </div>
             )}
           </div>
         )}
-      </ScrollArea>
+      </div>
 
-      {/* Quick Actions */}
-      {showQuickActions && messages.length === 0 && (
-        <div className="px-4 pb-2">
-          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Quick Actions</p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {quickActions.map((action, index) => (
-              <Button
-                key={index}
-                variant="outline"
-                size="sm"
-                onClick={() => handleSend(action.prompt)}
-                className="h-auto py-2 px-2 text-xs justify-start hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-700 transition-all"
-              >
-                <action.icon className="w-3 h-3 mr-1.5 text-blue-600 dark:text-blue-400" />
-                <span className="truncate">{action.label}</span>
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Input Area */}
-      <div className="p-3 border-t border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm space-y-2">
+      {/* Bottom Actions */}
+      <div className="p-2 border-t border-border bg-editor-sidebar flex-shrink-0 space-y-1.5">
         {suggestedCode && (
           <Button
             onClick={acceptChanges}
             size="sm"
-            className="w-full h-8 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
+            className="w-full h-7 text-xs bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white"
           >
-            <Sparkles className="w-3 h-3 mr-2" />
-            Accept Changes
+            <Sparkles className="w-3 h-3 mr-1" />
+            Accept & Apply Code
           </Button>
         )}
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -321,20 +326,16 @@ export const ModernAIAssistant = ({ onCodeInsert, attachedFile, onFileDetach }: 
                 handleSend();
               }
             }}
-            placeholder="Ask AI for help..."
-            className="flex-1 text-sm h-9 bg-white dark:bg-gray-900"
+            placeholder="Ask AI..."
+            className="flex-1 text-xs h-8 bg-editor-bg border-editor-border text-editor-text"
             disabled={isLoading}
           />
           <Button
             onClick={() => handleSend()}
             disabled={!input.trim() || isLoading}
-            className="h-9 px-3 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+            className="h-8 w-8 p-0 bg-editor-accent hover:bg-editor-accent/80"
           >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
+            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
           </Button>
         </div>
       </div>

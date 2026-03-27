@@ -10,9 +10,10 @@ interface CodeEditorProps {
   language: string;
   fileName: string;
   onRun?: (code: string, language: string, fileName: string) => void;
+  onErrors?: (errors: { line: number; message: string }[]) => void;
 }
 
-export const CodeEditor = ({ value, onChange, language, fileName, onRun }: CodeEditorProps) => {
+export const CodeEditor = ({ value, onChange, language, fileName, onRun, onErrors }: CodeEditorProps) => {
   const editorRef = useRef<any>(null);
   const [isRunning, setIsRunning] = useState(false);
 
@@ -128,6 +129,18 @@ export const CodeEditor = ({ value, onChange, language, fileName, onRun }: CodeE
     monaco.languages.registerCompletionItemProvider('cpp', {
       provideCompletionItems: () => ({ suggestions: cppSuggestions })
     });
+    
+    // Track markers for error reporting
+    const updateErrors = () => {
+      const markers = monaco.editor.getModelMarkers({ resource: editor.getModel()?.uri });
+      const errorMarkers = markers
+        .filter((m: any) => m.severity === monaco.MarkerSeverity.Error)
+        .map((m: any) => ({ line: m.startLineNumber, message: m.message }));
+      onErrors?.(errorMarkers);
+    };
+
+    // Listen for marker changes
+    monaco.editor.onDidChangeMarkers(() => updateErrors());
     
     // Add keyboard shortcuts
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
