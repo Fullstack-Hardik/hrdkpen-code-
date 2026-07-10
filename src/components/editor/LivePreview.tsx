@@ -12,11 +12,14 @@ interface LivePreviewProps {
   activeFileName?: string;
   /** Called whenever the iframe sends console messages */
   onConsoleMessage?: (type: 'log' | 'warn' | 'error' | 'info', args: string[]) => void;
+  onNavigate?: (url: string) => void;
   serverUrl?: string | null;
+  inspectEnabled?: boolean;
+  onInspectChange?: (enabled: boolean) => void;
 }
 
 function buildDocument(html: string, css: string, js: string, injectEruda = false): string {
-  const erudaScript = injectEruda ? `<script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init();</script>` : '';
+  const erudaScript = injectEruda ? `<script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init({defaults:{displaySize:100,transparency:1,theme:'Dark'}}); eruda.show(); eruda._entryBtn.hide();</script>` : '';
   
   // Inject console capture + postMessage bridge into preview
   const bridge = `
@@ -41,6 +44,18 @@ function buildDocument(html: string, css: string, js: string, injectEruda = fals
   };
   window.addEventListener('unhandledrejection', e => {
     send('error', ['Unhandled Promise: ' + String(e.reason?.message || e.reason)]);
+  });
+
+  // Intercept anchor clicks
+  document.addEventListener('click', e => {
+    const a = e.target.closest('a');
+    if (a && a.getAttribute('href')) {
+      const href = a.getAttribute('href');
+      if (!href.startsWith('http') && !href.startsWith('mailto:') && !href.startsWith('#')) {
+        e.preventDefault();
+        send('navigate', [href]);
+      }
+    }
   });
 
   // Bypass COEP block for images
@@ -109,13 +124,22 @@ export const LivePreview = ({
   jsContent,
   activeFileName,
   onConsoleMessage,
+  onNavigate,
   serverUrl,
+  inspectEnabled,
+  onInspectChange,
 }: LivePreviewProps) => {
   const [device, setDevice]       = useState<DeviceMode>('desktop');
   const [refreshKey, setRefreshKey] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [inspectEnabled, setInspectEnabled] = useState(false);
+  const [internalInspect, setInternalInspect] = useState(false);
   const [currentUrl, setCurrentUrl] = useState(serverUrl || '');
+
+  const isInspect = inspectEnabled ?? internalInspect;
+  const toggleInspect = () => {
+    if (onInspectChange) onInspectChange(!isInspect);
+    else setInternalInspect(!isInspect);
+  };
 
   // Sync currentUrl when serverUrl prop changes
   useEffect(() => {
@@ -133,11 +157,15 @@ export const LivePreview = ({
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (!e.data?.__hrdkpen_preview) return;
-      onConsoleMessage?.(e.data.type, e.data.args);
+      if (e.data.type === 'navigate') {
+        onNavigate?.(e.data.args[0]);
+      } else {
+        onConsoleMessage?.(e.data.type, e.data.args);
+      }
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
-  }, [onConsoleMessage]);
+  }, [onConsoleMessage, onNavigate]);
 
   const openInNewTab = useCallback(() => {
     if (currentUrl) {
@@ -218,12 +246,12 @@ export const LivePreview = ({
           </div>
 
           <button
-            onClick={() => setInspectEnabled(v => !v)}
+            onClick={toggleInspect}
             title="Toggle Inspect (Eruda DevTools)"
             className="px-2 py-1 text-xs rounded transition-fast flex items-center gap-1"
             style={{
-              background: inspectEnabled ? 'hsl(var(--blue) / 0.15)' : 'transparent',
-              color: inspectEnabled ? 'hsl(var(--blue))' : 'hsl(var(--overlay1))',
+              background: isInspect ? 'hsl(var(--blue) / 0.15)' : 'transparent',
+              color: isInspect ? 'hsl(var(--blue))' : 'hsl(var(--overlay1))',
             }}
           >
             <Bug className="w-3.5 h-3.5" />
@@ -291,7 +319,7 @@ export const LivePreview = ({
             ) : (
               <iframe
                 key={refreshKey}
-                srcDoc={buildDocument(htmlContent, cssContent, jsContent, inspectEnabled)}
+                srcDoc={buildDocument(htmlContent, cssContent, jsContent, isInspect)}
                 className="w-full h-full border-0"
                 title="Live Preview"
                 sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin"

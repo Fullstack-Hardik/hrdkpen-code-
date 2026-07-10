@@ -7,6 +7,7 @@ import {
   ExternalLink,
   AlignLeft,
   Keyboard,
+  TerminalSquare,
 } from 'lucide-react';
 import { LANGUAGE_LABELS } from '@/lib/languages';
 import type { FileNode } from '@/types';
@@ -18,6 +19,8 @@ interface SystemHeaderProps {
   onExport: () => void;
   onPublish: () => void;
   onDownloadCurrent: () => void;
+  terminalOpen?: boolean;
+  onToggleTerminal?: () => void;
 }
 
 export const SystemHeader = ({
@@ -27,6 +30,8 @@ export const SystemHeader = ({
   onExport,
   onPublish,
   onDownloadCurrent,
+  terminalOpen,
+  onToggleTerminal,
 }: SystemHeaderProps) => {
   const lang = activeFile?.language ?? '';
   const langLabel = LANGUAGE_LABELS[lang] ?? '';
@@ -68,6 +73,19 @@ export const SystemHeader = ({
           <AlignLeft className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Format</span>
         </Button>
+
+        {onToggleTerminal && (
+          <Button
+            variant="ghost" size="sm"
+            onClick={onToggleTerminal}
+            className={`h-7 px-2 gap-1.5 text-xs ${terminalOpen ? 'bg-black/20' : ''}`}
+            style={{ color: terminalOpen ? 'hsl(var(--text))' : 'hsl(var(--overlay2))' }}
+            title="Toggle Terminal (Ctrl+`)"
+          >
+            <TerminalSquare className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Terminal</span>
+          </Button>
+        )}
 
         <Button
           variant="ghost" size="sm"

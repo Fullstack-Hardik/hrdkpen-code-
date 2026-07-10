@@ -4,14 +4,36 @@ import type { FileNode } from '@/types';
 import { getLanguageFromFilename } from '@/lib/languages';
 import { TEMPLATES } from '@/lib/templates';
 
-const STORAGE_KEY = 'hrdkpen_workspace';
+const PROJECTS_KEY = 'hrdkpen_projects';
+const ACTIVE_PROJECT_KEY = 'hrdkpen_active_project';
+const WORKSPACE_PREFIX = 'hrdkpen_workspace_';
+const LEGACY_STORAGE_KEY = 'hrdkpen_workspace';
+
+export interface ProjectMeta {
+  id: string;
+  name: string;
+  lastOpened: number;
+}
 
 /** Recursively find a node by id */
-function findNode(nodes: FileNode[], id: string): FileNode | null {
+export function findNode(nodes: FileNode[], id: string): FileNode | null {
   for (const node of nodes) {
     if (node.id === id) return node;
     if (node.children) {
       const found = findNode(node.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/** Recursively find a node path by id */
+export function findNodePath(nodes: FileNode[], id: string, currentPath = ''): string | null {
+  for (const node of nodes) {
+    const fullPath = currentPath ? `${currentPath}/${node.name}` : node.name;
+    if (node.id === id) return fullPath;
+    if (node.children) {
+      const found = findNodePath(node.children, id, fullPath);
       if (found) return found;
     }
   }
@@ -56,23 +78,128 @@ function generateId(prefix: string) {
 }
 
 export function useWorkspace() {
+  const [projects, setProjects] = useState<ProjectMeta[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [files, setFiles] = useState<FileNode[]>([]);
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    get(STORAGE_KEY).then(val => {
-      setFiles(val || []);
-      setIsReady(true);
-    }).catch(err => {
-      console.error('Failed to load workspace from IndexedDB', err);
-      setFiles([]);
-      setIsReady(true);
+    let unmounted = false;
+    async function load() {
+      try {
+        let projs = await get<ProjectMeta[]>(PROJECTS_KEY);
+        let activeId = await get<string>(ACTIVE_PROJECT_KEY);
+
+        // Migration from legacy single project
+        const legacyWorkspace = await get<FileNode[]>(LEGACY_STORAGE_KEY);
+        if (legacyWorkspace && (!projs || projs.length === 0)) {
+          const id = generateId('proj');
+          projs = [{ id, name: 'Legacy Project', lastOpened: Date.now() }];
+          await set(WORKSPACE_PREFIX + id, legacyWorkspace);
+          await set(PROJECTS_KEY, projs);
+          activeId = id;
+          await set(ACTIVE_PROJECT_KEY, id);
+        }
+
+        if (unmounted) return;
+        setProjects(projs || []);
+
+        if (activeId && projs?.find(p => p.id === activeId)) {
+          setActiveProjectId(activeId);
+          const val = await get<FileNode[]>(WORKSPACE_PREFIX + activeId);
+          setFiles(val || []);
+        } else if (projs && projs.length > 0) {
+          // Open the most recently opened
+          const sorted = [...projs].sort((a, b) => b.lastOpened - a.lastOpened);
+          setActiveProjectId(sorted[0].id);
+          const val = await get<FileNode[]>(WORKSPACE_PREFIX + sorted[0].id);
+          setFiles(val || []);
+        }
+        setIsReady(true);
+      } catch (err) {
+        console.error('Failed to load workspace', err);
+        if (!unmounted) setIsReady(true);
+      }
+    }
+    load();
+    return () => { unmounted = true; };
+  }, []);
+
+  const saveWorkspace = useCallback((updated: FileNode[], pid = activeProjectId) => {
+    if (!pid) return;
+    set(WORKSPACE_PREFIX + pid, updated).catch(err => console.error('Failed to save to IndexedDB', err));
+  }, [activeProjectId]);
+
+  const switchProject = useCallback(async (id: string) => {
+    setIsReady(false);
+    setActiveProjectId(id);
+    await set(ACTIVE_PROJECT_KEY, id);
+    const val = await get<FileNode[]>(WORKSPACE_PREFIX + id);
+    setFiles(val || []);
+    
+    setProjects(prev => {
+      const next = prev.map(p => p.id === id ? { ...p, lastOpened: Date.now() } : p);
+      set(PROJECTS_KEY, next).catch(console.error);
+      return next;
+    });
+    
+    setIsReady(true);
+  }, []);
+
+  const renameProject = useCallback(async (id: string, newName: string) => {
+    setProjects(prev => {
+      const next = prev.map(p => p.id === id ? { ...p, name: newName } : p);
+      set(PROJECTS_KEY, next).catch(console.error);
+      return next;
     });
   }, []);
 
-  const saveWorkspace = useCallback((updated: FileNode[]) => {
-    set(STORAGE_KEY, updated).catch(err => console.error('Failed to save to IndexedDB', err));
-  }, []);
+  const copyProject = useCallback(async (id: string) => {
+    const projToCopy = projects.find(p => p.id === id);
+    if (!projToCopy) return;
+
+    const sourceFiles = await get<FileNode[]>(WORKSPACE_PREFIX + id);
+    const newId = generateId('proj');
+    const newName = `${projToCopy.name} - Copy`;
+
+    await set(WORKSPACE_PREFIX + newId, sourceFiles || []);
+    setProjects(prev => {
+      const next = [...prev, { id: newId, name: newName, lastOpened: Date.now() }];
+      set(PROJECTS_KEY, next).catch(console.error);
+      return next;
+    });
+    
+    // Switch to the newly copied project
+    await switchProject(newId);
+  }, [projects, switchProject]);
+
+  const createProject = useCallback(async (name: string, nodes: FileNode[]) => {
+    const id = generateId('proj');
+    const newProj: ProjectMeta = { id, name, lastOpened: Date.now() };
+    
+    setProjects(prev => {
+      const next = [...prev, newProj];
+      set(PROJECTS_KEY, next).catch(console.error);
+      return next;
+    });
+    
+    await set(WORKSPACE_PREFIX + id, nodes);
+    await switchProject(id);
+    return id;
+  }, [switchProject]);
+
+  const deleteProject = useCallback(async (id: string) => {
+    setProjects(prev => {
+      const next = prev.filter(p => p.id !== id);
+      set(PROJECTS_KEY, next).catch(console.error);
+      return next;
+    });
+    if (activeProjectId === id) {
+      setActiveProjectId(null);
+      await set(ACTIVE_PROJECT_KEY, null);
+      setFiles([]);
+    }
+  }, [activeProjectId]);
 
   const createFile = useCallback((
     name: string,
@@ -166,90 +293,69 @@ export function useWorkspace() {
     });
   }, [saveWorkspace]);
 
-  const importFolder = useCallback((items: { path: string; content: string }[]) => {
-    setFiles(prev => {
-      const root = [...prev];
-
-      const ensureFolder = (segments: string[], nodes: FileNode[]): FileNode[] => {
-        if (!segments.length) return nodes;
-        const [head, ...tail] = segments;
-        let folder = nodes.find(n => n.type === 'folder' && n.name === head);
-        if (!folder) {
-          folder = { id: generateId('folder'), name: head, type: 'folder', children: [], isOpen: true };
-          nodes.push(folder);
-        }
-        folder.children = ensureFolder(tail, folder.children ?? []);
-        return nodes;
-      };
-
-      for (const { path, content } of items) {
-        const parts = path.split('/').filter(Boolean);
-        const fileName = parts.pop()!;
-        ensureFolder(parts, root);
-        let nodes = root;
-        for (const seg of parts) {
-          const next = nodes.find(n => n.type === 'folder' && n.name === seg) as FileNode;
-          nodes = next.children!;
-        }
-        nodes.push({
-          id: generateId('file'),
-          name: fileName,
-          type: 'file',
-          content,
-          language: getLanguageFromFilename(fileName),
-        });
+  const importFolder = useCallback(async (items: { path: string; content: string }[], projectName = 'Imported Project') => {
+    const root: FileNode[] = [];
+    const ensureFolder = (segments: string[], nodes: FileNode[]): FileNode[] => {
+      if (!segments.length) return nodes;
+      const [head, ...tail] = segments;
+      let folder = nodes.find(n => n.type === 'folder' && n.name === head);
+      if (!folder) {
+        folder = { id: generateId('folder'), name: head, type: 'folder', children: [], isOpen: true };
+        nodes.push(folder);
       }
+      folder.children = ensureFolder(tail, folder.children ?? []);
+      return nodes;
+    };
 
-      saveWorkspace(root);
-      return root;
-    });
-  }, [saveWorkspace]);
+    for (const { path, content } of items) {
+      const parts = path.split('/').filter(Boolean);
+      const fileName = parts.pop()!;
+      ensureFolder(parts, root);
+      let nodes = root;
+      for (const seg of parts) {
+        const next = nodes.find(n => n.type === 'folder' && n.name === seg) as FileNode;
+        nodes = next.children!;
+      }
+      nodes.push({
+        id: generateId('file'),
+        name: fileName,
+        type: 'file',
+        content,
+        language: getLanguageFromFilename(fileName),
+      });
+    }
+
+    await createProject(projectName, root);
+  }, [createProject]);
 
   const findFile = useCallback((id: string) => findNode(files, id), [files]);
+  const findFilePath = useCallback((id: string) => findNodePath(files, id), [files]);
 
-  const loadTemplate = useCallback(async (type: keyof typeof TEMPLATES) => {
-    const nodes = TEMPLATES[type]();
-    let updatedFiles: FileNode[] = [];
-    let returnedFolderName = '';
+  const loadTemplate = useCallback(async (type: keyof typeof TEMPLATES | 'empty') => {
+    let nodes: FileNode[] = [];
+    if (type !== 'empty') {
+      nodes = TEMPLATES[type]();
+    }
+    const templateName = type === 'empty' ? 'Empty Project' : `${type}-project`;
     
-    // We must use a Promise to wait for state update before returning
-    await new Promise<void>(resolve => {
-      setFiles(prev => {
-        const templateName = `${type}-project`;
-        let folderName = templateName;
-        let counter = 1;
-        
-        const checkExists = (n: FileNode[], name: string): boolean => 
-          n.some(f => f.name === name);
-        
-        while (checkExists(prev, folderName)) {
-          folderName = `${templateName}-${counter++}`;
-        }
-        
-        returnedFolderName = folderName;
-
-        const newFolder: FileNode = {
-          id: generateId('folder'),
-          name: folderName,
-          type: 'folder',
-          children: nodes,
-          isOpen: true,
-        };
-
-        updatedFiles = [...prev, newFolder];
-        saveWorkspace(updatedFiles);
-        resolve();
-        return updatedFiles;
-      });
-    });
+    // Find unique name across all projects
+    let projName = templateName;
+    let counter = 1;
+    while (projects.some(p => p.name === projName)) {
+      projName = `${templateName}-${counter++}`;
+    }
     
-    return returnedFolderName;
-  }, [saveWorkspace]);
+    await createProject(projName, nodes);
+    return projName;
+  }, [createProject, projects]);
 
   return {
     isReady,
+    projects,
+    activeProjectId,
     files,
     findFile,
+    findFilePath,
     createFile,
     updateFileContent,
     renameFile,
@@ -257,6 +363,11 @@ export function useWorkspace() {
     moveNode,
     importFolder,
     loadTemplate,
+    switchProject,
+    deleteProject,
+    createProject,
+    renameProject,
+    copyProject,
     setWorkspaceFiles: (newFiles: FileNode[]) => {
       setFiles(newFiles);
       saveWorkspace(newFiles);

@@ -2,6 +2,7 @@ import { useEffect, useRef, forwardRef, useImperativeHandle, useState } from 're
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { TerminalSquare, Trash2, X } from 'lucide-react';
+import { Play, HelpCircle, Code2, Bug } from 'lucide-react';
 import { getWebContainer } from '@/lib/webcontainer';
 import { executeJavaScript, executePython, executeCompiled } from '@/lib/execution';
 import '@xterm/xterm/css/xterm.css';
@@ -154,6 +155,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onClose }, 
       const term = xtermRef.current;
       const writer = writerRef.current;
       if (term && writer) {
+        if (cmd.trim().toLowerCase() === 'help') {
+          term.writeln('');
+          term.writeln('\x1b[36m================ HELP MENU ================\x1b[0m');
+          term.writeln('\x1b[33mnpm run dev\x1b[0m    : Starts the development server (Vite, React, etc.)');
+          term.writeln('\x1b[33mnpm run build\x1b[0m  : Builds the project for production');
+          term.writeln('\x1b[33mnode <file>\x1b[0m    : Runs a Javascript file (e.g. node index.js)');
+          term.writeln('\x1b[33mls\x1b[0m             : Lists files in the current directory');
+          term.writeln('\x1b[33mpwd\x1b[0m            : Shows the current directory path');
+          term.writeln('\x1b[33mclear\x1b[0m          : Clears the terminal screen');
+          term.writeln('\x1b[36m===========================================\x1b[0m');
+          term.writeln('');
+          return;
+        }
         writer.write(cmd + '\r');
       }
     },
@@ -172,7 +186,37 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onClose }, 
           <span className="text-xs font-medium text-slate-400">Terminal</span>
           {isBooting && <span className="text-xs text-yellow-500 animate-pulse">Booting container...</span>}
         </div>
-        <div className="flex items-center gap-1">
+        
+        <div className="flex items-center gap-2">
+          {/* Quick Action Buttons */}
+          <div className="flex items-center bg-editor-bg border border-editor-border rounded p-0.5">
+            <button
+              onClick={() => writerRef.current?.write('npm run dev\r')}
+              className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-green-400 hover:bg-green-500/10 rounded transition-colors"
+              title="Run 'npm run dev'"
+            >
+              <Play className="w-3 h-3" /> Dev
+            </button>
+            <div className="w-px h-3 bg-editor-border mx-0.5" />
+            <button
+              onClick={() => writerRef.current?.write('npm run build\r')}
+              className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
+              title="Run 'npm run build'"
+            >
+              <Code2 className="w-3 h-3" /> Build
+            </button>
+            <div className="w-px h-3 bg-editor-border mx-0.5" />
+            <button
+              onClick={() => writerRef.current?.write('help\r')}
+              className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-purple-400 hover:bg-purple-500/10 rounded transition-colors"
+              title="Help Menu"
+            >
+              <HelpCircle className="w-3 h-3" /> Help
+            </button>
+          </div>
+
+          <div className="w-px h-4 bg-editor-border mx-1" />
+
           <button onClick={handleClear} className="p-1 rounded transition-fast text-slate-500 hover:text-slate-300" title="Clear">
             <Trash2 className="w-3 h-3" />
           </button>

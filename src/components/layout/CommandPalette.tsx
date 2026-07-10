@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Command } from 'cmdk';
 import { Search, FileCode, Play, Settings, Bot, BookOpen, ImageIcon, LayoutPanelLeft } from 'lucide-react';
-import { useWorkspace } from '@/hooks/use-workspace';
+import type { FileNode } from '@/types';
 
 export const CommandPalette = ({
   open,
   setOpen,
   onAction,
+  files = []
 }: {
   open: boolean;
   setOpen: (open: boolean) => void;
   onAction: (action: string, payload?: any) => void;
+  files: FileNode[];
 }) => {
-  const workspace = useWorkspace();
 
   // Toggle the menu when ⌘K is pressed
   useEffect(() => {
@@ -48,7 +49,7 @@ export const CommandPalette = ({
           </Command.Empty>
 
           <Command.Group heading="Files" className="text-[11px] font-semibold text-editor-text-muted uppercase tracking-wider mb-2 px-2 pt-2">
-            {workspace.files.map((file) => (
+            {files.map((file) => (
               <Command.Item
                 key={file.id}
                 onSelect={() => {

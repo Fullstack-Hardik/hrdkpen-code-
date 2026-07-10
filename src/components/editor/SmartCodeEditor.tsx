@@ -8,7 +8,7 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '@/components/ui/context-menu';
-import { X, Monitor, Bot, Search, Minus, Square, BookOpen, Plus, Image as ImageIcon } from 'lucide-react';
+import { X, Monitor, Bot, Search, Minus, Square, BookOpen, Plus, Image as ImageIcon, PenTool, FolderTree, GraduationCap } from 'lucide-react';
 
 import { SystemHeader } from './SystemHeader';
 import { FileExplorer } from './FileExplorer';
@@ -18,11 +18,12 @@ import { Terminal, type TerminalHandle } from './Terminal';
 import { PublishModal } from '@/components/publish/PublishModal';
 import { StatusBar } from './StatusBar';
 import { ActivityBar, type ActivityBarView } from '@/components/layout/ActivityBar';
-import { AIAssistant } from '@/components/ai/AIAssistant';
 import { SmartPopup } from '@/components/ai/SmartPopup';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { ProblemsPanel, type Problem } from '@/components/panels/ProblemsPanel';
 import { OutputPanel, type OutputLine, makeOutputLine } from '@/components/panels/OutputPanel';
+import { ProjectsPanel } from '@/components/panels/ProjectsPanel';
+import { IframePanel } from '@/components/panels/IframePanel';
 import { AssetLibrary } from '@/components/assets/AssetLibrary';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { BootstrapScreen } from '@/components/layout/BootstrapScreen';
@@ -65,7 +66,7 @@ export const SmartCodeEditor = () => {
   const [openTabs, setOpenTabs]           = useState<FileNode[]>([]);
   const [activeTabId, setActiveTabId]     = useState<string>('');
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
-  const [hasBootstrapped, setHasBootstrapped] = useState(false);
+  const [showBootstrap, setShowBootstrap] = useState(false);
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
   const [bottomTab, setBottomTab]         = useState<BottomPanel>('terminal');
   const [searchQuery, setSearchQuery]     = useState('');
@@ -120,6 +121,8 @@ export const SmartCodeEditor = () => {
   const editorRef   = useRef<{ format: () => void; goToLine: (line: number, col: number) => void } | null>(null);
 
   const [serverUrl, setServerUrl] = useState<string | null>(null);
+  const [inspectEnabled, setInspectEnabled] = useState(false);
+  const staticServerRunning = useRef<string | null>(null);
 
   // ─── Listen to WebContainer server ready ───
   useEffect(() => {
@@ -143,7 +146,11 @@ export const SmartCodeEditor = () => {
           const tree: FileSystemTree = {};
           for (const n of nodes) {
             if (n.type === 'file') {
-              tree[n.name] = { file: { contents: n.content ?? '' } };
+              let contents = n.content ?? '';
+              if (inspectEnabled && (n.name === 'index.html' || n.name.endsWith('.html'))) {
+                contents = contents.replace(/<head([^>]*)>/i, `<head$1><script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init();</script>`);
+              }
+              tree[n.name] = { file: { contents } };
             } else if (n.type === 'folder') {
               tree[n.name] = { directory: buildTree(n.children ?? []) };
             }
@@ -151,12 +158,41 @@ export const SmartCodeEditor = () => {
           return tree;
         };
         await wc.mount(buildTree(workspace.files));
+        
+        // Auto-start a static server if no package.json is present
+        const hasPackageJson = workspace.files.some(f => f.name === 'package.json');
+        if (!hasPackageJson && staticServerRunning.current !== workspace.activeProjectId) {
+          staticServerRunning.current = workspace.activeProjectId;
+          const serveCode = `
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const mime = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' };
+http.createServer((req, res) => {
+  let filePath = path.join(process.cwd(), req.url === '/' ? 'index.html' : req.url);
+  let ext = path.extname(filePath);
+  if (!ext && fs.existsSync(filePath + '.html')) { filePath += '.html'; ext = '.html'; }
+  fs.readFile(filePath, (err, content) => {
+    if (err) {
+      if (err.code === 'ENOENT') { res.writeHead(404); res.end('404 Not Found'); }
+      else { res.writeHead(500); res.end('500 Internal Error'); }
+    } else {
+      res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain' });
+      res.end(content);
+    }
+  });
+}).listen(3000, () => console.log('HRDK static server running'));
+`;
+          await wc.fs.writeFile('/.hrdkpen_serve.js', serveCode);
+          await wc.spawn('node', ['.hrdkpen_serve.js']);
+        }
       } catch (e) {
         console.error('Failed to sync to WebContainer:', e);
       }
     };
     syncToWC();
-  }, [workspace.files]);
+    // Re-run sync when inspect is toggled
+  }, [workspace.files, inspectEnabled]);
 
   // Removed STARTER_FILES since we use BootstrapScreen now.
 
@@ -182,7 +218,21 @@ export const SmartCodeEditor = () => {
     if (!activeTabId) return;
     workspace.updateFileContent(activeTabId, content);
     setOpenTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, content } : t));
-  }, [activeTabId, workspace]);
+    
+    // Dynamically write to WebContainer FS to trigger HMR efficiently
+    const filePath = workspace.findFilePath(activeTabId);
+    if (filePath) {
+      getWebContainer().then(wc => {
+        let finalContent = content;
+        if (inspectEnabled && (filePath === 'index.html' || filePath.endsWith('.html'))) {
+          finalContent = content.replace(/<head([^>]*)>/i, `<head$1><script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init({defaults:{displaySize:100,transparency:1,theme:'Dark'}}); eruda.show(); eruda._entryBtn.hide();</script>`);
+        }
+        wc.fs.writeFile(`/${filePath}`, finalContent).catch(err => {
+          console.error('Failed to write file to WebContainer:', err);
+        });
+      });
+    }
+  }, [activeTabId, workspace, inspectEnabled]);
 
   const handleFileRename = useCallback((id: string, name: string) => {
     workspace.renameFile(id, name);
@@ -208,8 +258,13 @@ export const SmartCodeEditor = () => {
   }, [workspace.files]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Live preview content ───
+  const getHtmlContent = () => {
+    if (activeFile?.language === 'html') return activeFile.content;
+    return openTabs.find(t => t.language === 'html')?.content ?? '';
+  };
+
   const previewContent = {
-    html: openTabs.find(t => t.language === 'html')?.content ?? '',
+    html: getHtmlContent(),
     css:  openTabs.find(t => t.language === 'css')?.content ?? '',
     js:   openTabs.find(t => t.language === 'javascript' || t.language === 'typescript')?.content ?? '',
   };
@@ -372,11 +427,19 @@ export const SmartCodeEditor = () => {
         />
       );
     }
-    if (activityView === 'ai') {
+    if (activityView === 'projects') {
       return (
-        <AIAssistant
-          activeFile={activeFile ? { name: activeFile.name, content: activeFile.content ?? '' } : null}
-          onCodeInsert={code => { if (activeFile) handleContentChange(code); }}
+        <ProjectsPanel
+          projects={workspace.projects}
+          activeProjectId={workspace.activeProjectId}
+          onOpenProject={async (id) => {
+            await workspace.switchProject(id);
+            setActivityView('explorer');
+          }}
+          onDeleteProject={workspace.deleteProject}
+          onRenameProject={workspace.renameProject}
+          onCopyProject={workspace.copyProject}
+          onCreateNew={() => setShowBootstrap(true)}
         />
       );
     }
@@ -490,19 +553,12 @@ export const SmartCodeEditor = () => {
       if (unmounted) return;
       wc.on('server-ready', (port, url) => {
         setServerUrl(url);
-        // Force the right panel to show preview
-        setRightPanel('preview');
-        setRightPanelOpen(true);
       });
     });
     return () => { unmounted = true; };
   }, []);
 
-  useEffect(() => {
-    if (workspace.isReady && workspace.files.length > 0) {
-      setHasBootstrapped(true);
-    }
-  }, [workspace.isReady, workspace.files.length]);
+  // Removed hasBootstrapped useEffect to fix Bootstrap screen locking
 
   if (!workspace.isReady) {
     return (
@@ -512,13 +568,19 @@ export const SmartCodeEditor = () => {
       </div>
     );
   }
-
-  if (!hasBootstrapped && workspace.files.length === 0) {
+  const needsBootstrap = workspace.isReady && !workspace.activeProjectId;
+  if (needsBootstrap || showBootstrap) {
     return (
-      <BootstrapScreen 
+      <BootstrapScreen
+        projects={workspace.projects}
+        onOpenProject={async (id) => {
+          setShowBootstrap(false);
+          await workspace.switchProject(id);
+        }}
+        onDeleteProject={workspace.deleteProject}
         onLoadTemplate={async (type) => {
-          setHasBootstrapped(true);
-          const folderName = await workspace.loadTemplate(type);
+          setShowBootstrap(false);
+          const folderName = await workspace.loadTemplate(type as any);
           
           if (type === 'react' || type === 'express' || type === 'node') {
             setTimeout(() => {
@@ -535,7 +597,7 @@ export const SmartCodeEditor = () => {
           }
         }} 
         onImportFolder={() => {
-          setHasBootstrapped(true);
+          setShowBootstrap(false);
           // Trigger the standard import flow
           const input = document.createElement('input');
           input.type = 'file';
@@ -564,6 +626,8 @@ export const SmartCodeEditor = () => {
         onExport={exportProject}
         onPublish={handlePublishClick}
         onDownloadCurrent={downloadCurrent}
+        terminalOpen={bottomPanelOpen}
+        onToggleTerminal={() => setBottomPanelOpen(v => !v)}
       />
 
       <PublishModal
@@ -576,6 +640,7 @@ export const SmartCodeEditor = () => {
         open={paletteOpen} 
         setOpen={setPaletteOpen} 
         onAction={handlePaletteAction} 
+        files={workspace.files}
       />
 
       {/* Body */}
@@ -583,7 +648,24 @@ export const SmartCodeEditor = () => {
         {/* Activity bar */}
         <ActivityBar
           active={activityView}
-          onChange={setActivityView}
+          onChange={(view) => {
+            if (['excalidraw', 'mdn', 'learn'].includes(view)) {
+              const toolId = `tool:${view}`;
+              const existing = openTabs.find(t => t.id === toolId);
+              if (!existing) {
+                const name = view === 'excalidraw' ? 'Whiteboard' : view === 'mdn' ? 'MDN Docs' : 'Learn Web Dev';
+                setOpenTabs(prev => [...prev, {
+                  id: toolId,
+                  name,
+                  type: 'file',
+                  language: 'tool',
+                } as any]);
+              }
+              setActiveTabId(toolId);
+            } else {
+              setActivityView(view);
+            }
+          }}
           terminalOpen={bottomPanelOpen}
           onToggleTerminal={() => setBottomPanelOpen(v => !v)}
           errorCount={errorCount}
@@ -591,34 +673,40 @@ export const SmartCodeEditor = () => {
 
         {/* Main layout */}
         <div className="flex flex-col flex-1 overflow-hidden min-h-0">
-          <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
+          <ResizablePanelGroup direction="vertical" className="flex-1 min-h-0">
+            <ResizablePanel defaultSize={75} minSize={30} className="flex-1 min-h-0">
+              <ResizablePanelGroup direction="horizontal" className="h-full">
             {/* Sidebar */}
-            <ResizablePanel defaultSize={20} minSize={14} maxSize={40}>
-              <div className="flex flex-col h-full border-r border-editor-border bg-editor-sidebar">
-                {/* Sidebar title */}
-                <div
-                  className="px-4 py-2 flex-shrink-0 border-b border-editor-border"
-                  style={{ height: 36 }}
-                >
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-editor-text-muted">
-                    {activityView === 'explorer' ? 'Explorer'
-                    : activityView === 'search'   ? 'Search'
-                    : activityView === 'ai'        ? 'AI Assistant'
-                    : activityView === 'docs'      ? 'Documentation'
-                    : 'Settings'}
-                  </p>
-                </div>
-                <div className="flex-1 overflow-hidden">
-                  {renderSidebarContent()}
-                </div>
-              </div>
-            </ResizablePanel>
-
-            <ResizableHandle withHandle />
+            {!['excalidraw', 'mdn', 'learn'].includes(activityView) && (
+              <>
+                <ResizablePanel defaultSize={20} minSize={14} maxSize={40}>
+                  <div className="flex flex-col h-full border-r border-editor-border bg-editor-sidebar">
+                    {/* Sidebar title */}
+                    <div
+                      className="px-4 py-2 flex-shrink-0 border-b border-editor-border"
+                      style={{ height: 36 }}
+                    >
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-editor-text-muted">
+                        {activityView === 'explorer' ? 'Explorer'
+                        : activityView === 'search'   ? 'Search'
+                        : activityView === 'projects' ? 'Projects'
+                        : activityView === 'docs'      ? 'Documentation'
+                        : 'Settings'}
+                      </p>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      {renderSidebarContent()}
+                    </div>
+                  </div>
+                </ResizablePanel>
+                <ResizableHandle withHandle />
+              </>
+            )}
 
             {/* Editor + Right panel */}
             <ResizablePanel defaultSize={rightPanel ? 55 : 80}>
-              <div className="flex flex-col h-full">
+              <div className="flex flex-col h-full overflow-hidden">
+                  <>
                 {/* Tab bar */}
                 <div
                   className="flex items-center overflow-x-auto flex-shrink-0 no-select"
@@ -677,26 +765,35 @@ export const SmartCodeEditor = () => {
                 <div className="flex-1 min-h-0 relative">
                   {activeFile ? (
                     <>
-                      <CodeEditor
-                        key={activeFile.id}
-                        value={activeFile.content ?? ''}
-                        onChange={handleContentChange}
-                        language={activeFile.language ?? 'plaintext'}
-                        fileName={activeFile.name}
-                        settings={settings}
-                        onRun={runActiveFile}
-                        onCursorChange={(line, column) => setCursorPos({ line, column })}
-                        onSelectionChange={(text, pos) => setSelection({ text, pos })}
-                        onErrors={handleEditorErrors}
-                        onEditorReady={api => { editorRef.current = api; }}
-                      />
+                      {activeFile.language === 'tool' ? (
+                        activeFile.id === 'tool:excalidraw' ? (
+                          <IframePanel title="Excalidraw" url="https://excalidraw.com/" icon={<PenTool className="w-5 h-5" />} />
+                        ) : activeFile.id === 'tool:mdn' ? (
+                          <IframePanel title="MDN Web Docs" url="https://corsproxy.io/?url=https%3A%2F%2Fdeveloper.mozilla.org%2Fen-US%2Fdocs%2FWeb" icon={<BookOpen className="w-5 h-5" />} />
+                        ) : (
+                          <IframePanel title="Learn Web Dev" url="https://corsproxy.io/?url=https%3A%2F%2Fweb.dev%2Flearn" icon={<GraduationCap className="w-5 h-5" />} />
+                        )
+                      ) : (
+                        <CodeEditor
+                          key={activeFile.id}
+                          value={activeFile.content ?? ''}
+                          onChange={handleContentChange}
+                          language={activeFile.language ?? 'plaintext'}
+                          fileName={activeFile.name}
+                          settings={settings}
+                          onRun={runActiveFile}
+                          onCursorChange={(line, column) => setCursorPos({ line, column })}
+                          onSelectionChange={(text, pos) => setSelection({ text, pos })}
+                          onErrors={handleEditorErrors}
+                          onEditorReady={api => { editorRef.current = api; }}
+                        />
+                      )}
                       <SmartPopup 
                         position={selection.pos}
                         text={selection.text}
                         onAction={(action) => {
-                          setRightPanel('ai');
                           const message = `Please ${action} this code:\n\`\`\`\n${selection.text}\n\`\`\``;
-                          window.dispatchEvent(new CustomEvent('ai-chat', { detail: message }));
+                          window.open(`https://chatgpt.com/?q=${encodeURIComponent(message)}`, '_blank');
                         }}
                       />
                     </>
@@ -716,7 +813,8 @@ export const SmartCodeEditor = () => {
                       </div>
                     </div>
                   )}
-                </div>
+                  </div>
+                </>
               </div>
             </ResizablePanel>
 
@@ -737,32 +835,11 @@ export const SmartCodeEditor = () => {
                     >
                       <div className="flex items-center">
                         <button
-                          className={`panel-tab ${rightPanel === 'preview' ? 'active' : ''}`}
+                          className="panel-tab active"
                           onClick={() => setRightPanel('preview')}
                         >
                           <Monitor className="w-3.5 h-3.5" />
                           Preview
-                        </button>
-                        <button
-                          className={`panel-tab ${rightPanel === 'ai' ? 'active' : ''}`}
-                          onClick={() => setRightPanel('ai')}
-                        >
-                          <Bot className="w-3.5 h-3.5" />
-                          AI
-                        </button>
-                        <button
-                          className={`panel-tab ${rightPanel === 'docs' ? 'active' : ''}`}
-                          onClick={() => setRightPanel('docs')}
-                        >
-                          <BookOpen className="w-3.5 h-3.5" />
-                          Docs
-                        </button>
-                        <button
-                          className={`panel-tab ${rightPanel === 'assets' ? 'active' : ''}`}
-                          onClick={() => setRightPanel('assets')}
-                        >
-                          <ImageIcon className="w-3.5 h-3.5" />
-                          Assets
                         </button>
                       </div>
                       <button
@@ -782,14 +859,33 @@ export const SmartCodeEditor = () => {
                           jsContent={previewContent.js}
                           activeFileName={activeFile?.name}
                           serverUrl={serverUrl}
+                          inspectEnabled={inspectEnabled}
+                          onInspectChange={setInspectEnabled}
+                          onNavigate={(url) => {
+                            // Find the file by name (simple path matching)
+                            const targetName = url.split('/').pop() || url;
+                            let targetNode: FileNode | undefined;
+                            
+                            const searchNode = (nodes: FileNode[]) => {
+                              for (const n of nodes) {
+                                if (n.name === targetName && n.type === 'file') {
+                                  targetNode = n;
+                                  return;
+                                }
+                                if (n.children) searchNode(n.children);
+                              }
+                            };
+                            searchNode(workspace.files);
+                            
+                            if (targetNode) {
+                              openTab(targetNode);
+                            } else {
+                              addOutput('error', `Navigation failed: ${url} not found in workspace`);
+                            }
+                          }}
                           onConsoleMessage={(type, args) => {
                             addOutput(type as OutputLine['type'], args.join(' '));
                           }}
-                        />
-                      ) : rightPanel === 'ai' ? (
-                        <AIAssistant
-                          activeFile={activeFile ? { name: activeFile.name, content: activeFile.content ?? '' } : null}
-                          onCodeInsert={code => { if (activeFile) handleContentChange(code); }}
                         />
                       ) : rightPanel === 'assets' ? (
                         <AssetLibrary />
@@ -800,12 +896,13 @@ export const SmartCodeEditor = () => {
               </>
             )}
           </ResizablePanelGroup>
+        </ResizablePanel>
 
-          {/* Bottom panels (Terminal / Output / Problems) */}
-          <div
-            className="flex-shrink-0 border-t border-editor-border overflow-hidden transition-all duration-200"
-            style={{ height: bottomPanelOpen ? 260 : 0 }}
-          >
+        {bottomPanelOpen && (
+          <>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={25} minSize={10} className="flex flex-col bg-editor-bg z-10">
+              <div className="flex-1 flex flex-col h-full border-t border-editor-border">
             {/* Bottom panel tabs */}
             <div
               className="flex items-center justify-between flex-shrink-0"
@@ -816,7 +913,7 @@ export const SmartCodeEditor = () => {
               }}
             >
               <div className="flex items-center">
-                {(['terminal', 'output', 'problems', 'inspect'] as BottomPanel[]).map(tab => (
+                {(['terminal', 'output', 'problems', 'inspect', 'help'] as BottomPanel[]).map(tab => (
                   <button
                     key={tab}
                     onClick={() => setBottomTab(tab)}
@@ -843,7 +940,7 @@ export const SmartCodeEditor = () => {
             </div>
 
             {/* Panel content */}
-            <div className="h-[228px] flex flex-col">
+            <div className="flex-1 overflow-hidden flex flex-col min-h-0">
               {bottomTab === 'terminal' && (
                 <>
                   <div className="flex items-center gap-1 bg-editor-panel border-b border-editor-border px-2 pt-1 overflow-x-auto min-h-[28px]">
@@ -908,31 +1005,75 @@ export const SmartCodeEditor = () => {
                 />
               )}
               {bottomTab === 'inspect' && (
-                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-editor-bg">
-                  <div className="w-12 h-12 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center mb-3">
-                    <Bug className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-editor-text font-medium mb-2">Web Inspector</h3>
-                  <p className="text-editor-text-muted text-sm max-w-md mb-4">
-                    Browser security prevents embedding full Developer Tools directly inside this panel for WebContainers. 
-                  </p>
-                  <button
-                    onClick={() => {
-                      if (serverUrl) {
-                        window.open(serverUrl, '_blank');
+                <div className="flex-1 w-full h-full relative">
+                  <LivePreview
+                    htmlContent={activeFile?.name.endsWith('.html') ? activeFile.content : getHtmlContent()}
+                    cssContent={previewContent.css}
+                    jsContent={previewContent.js}
+                    activeFileName={activeFile?.name}
+                    onNavigate={(url) => {
+                      const targetName = url.split('/').pop() || url;
+                      let targetNode: FileNode | undefined;
+                      const searchNode = (nodes: FileNode[]) => {
+                        for (const n of nodes) {
+                          if (n.name === targetName && n.type === 'file') {
+                            targetNode = n; return;
+                          }
+                          if (n.children) searchNode(n.children);
+                        }
+                      };
+                      searchNode(workspace.files);
+                      if (targetNode) {
+                        openTab(targetNode);
                       } else {
-                        alert('Please use the "Open in new tab" button in the Preview panel to inspect static projects.');
+                        addOutput('error', `Navigation failed: ${url} not found`);
                       }
                     }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm transition-colors"
-                  >
-                    Open Project in New Tab (Press F12 to Inspect)
-                  </button>
+                    onConsoleMessage={(type, args) => {
+                      addOutput(type as OutputLine['type'], args.join(' '));
+                    }}
+                    serverUrl={null} // Important: Do not pass serverUrl here to prevent multiple HMR clients crashing Vite
+                    inspectEnabled={true}
+                    onInspectChange={setInspectEnabled}
+                  />
+                </div>
+              )}
+              {bottomTab === 'help' && (
+                <div className="flex-1 overflow-y-auto p-4 bg-editor-bg text-editor-text custom-scrollbar">
+                  <div className="max-w-3xl mx-auto space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-emerald-400 mb-2 border-b border-editor-border pb-2">Available Commands</h3>
+                      <p className="text-sm text-editor-text-muted mb-4">You can type these commands directly into the terminal or use the quick-action buttons above.</p>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-editor-panel border border-editor-border p-4 rounded-lg">
+                          <code className="text-blue-400 font-mono text-sm font-semibold bg-blue-500/10 px-2 py-1 rounded">npm run dev</code>
+                          <p className="text-sm text-editor-text-muted mt-2">Starts the Vite development server with Hot Module Replacement (HMR). Code changes will automatically reload the preview.</p>
+                        </div>
+                        <div className="bg-editor-panel border border-editor-border p-4 rounded-lg">
+                          <code className="text-blue-400 font-mono text-sm font-semibold bg-blue-500/10 px-2 py-1 rounded">npm run build</code>
+                          <p className="text-sm text-editor-text-muted mt-2">Creates an optimized production build of your application in the <code className="text-emerald-400">dist</code> folder.</p>
+                        </div>
+                        <div className="bg-editor-panel border border-editor-border p-4 rounded-lg">
+                          <code className="text-blue-400 font-mono text-sm font-semibold bg-blue-500/10 px-2 py-1 rounded">npm install</code>
+                          <p className="text-sm text-editor-text-muted mt-2">Installs all dependencies listed in your <code className="text-emerald-400">package.json</code>.</p>
+                        </div>
+                        <div className="bg-editor-panel border border-editor-border p-4 rounded-lg">
+                          <code className="text-blue-400 font-mono text-sm font-semibold bg-blue-500/10 px-2 py-1 rounded">help</code>
+                          <p className="text-sm text-editor-text-muted mt-2">Displays this help documentation panel.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
           </div>
-        </div>
+        </ResizablePanel>
+      </>
+    )}
+  </ResizablePanelGroup>
+</div>
 
         {/* Floating right panel buttons (when right panel hidden) */}
         {!rightPanel && (
@@ -950,14 +1091,13 @@ export const SmartCodeEditor = () => {
               <Monitor className="w-3.5 h-3.5" />
             </button>
             <button
-              onClick={() => setRightPanel('ai')}
+              onClick={() => setRightPanel('assets')}
               className="w-8 h-8 rounded-full flex items-center justify-center transition-fast"
               style={{
                 background: 'hsl(var(--lavender) / 0.2)',
                 border: '1px solid hsl(var(--lavender) / 0.4)',
                 color: 'hsl(var(--lavender))',
               }}
-              title="Show AI Assistant"
             >
               <Bot className="w-3.5 h-3.5" />
             </button>

@@ -8,7 +8,7 @@
 /* Inspired by VS Code + Catppuccin Mocha */
 
 @layer base {
-  :root {
+  :root, .theme-smart-dark {
     /* === Core Palette (Professional Slate/Zinc) === */
     --crust:    240 10% 4%;    /* darkest background */
     --mantle:   240 5% 8%;     /* sidebar, panels */
@@ -86,6 +86,62 @@
     /* === Transitions === */
     --tx-smooth: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
     --tx-fast:   all 0.08s ease-out;
+  }
+
+  .theme-dracula {
+    --crust:    231 15% 12%;
+    --mantle:   231 15% 15%;
+    --base:     231 15% 18%;
+    --surface0: 231 15% 25%;
+    --surface1: 231 15% 30%;
+    --surface2: 231 15% 35%;
+    --overlay0: 231 15% 55%;
+    --overlay1: 231 15% 70%;
+    --overlay2: 231 15% 85%;
+    --text:     231 15% 96%;
+    --subtext0: 231 15% 90%;
+    --subtext1: 231 15% 85%;
+
+    --blue:     265 89% 78%; /* Dracula purple */
+    --lavender: 265 89% 85%;
+    --mauve:    326 100% 74%; /* pink */
+    --red:      0 100% 67%;
+    --maroon:   0 100% 75%;
+    --peach:    31 100% 71%; /* orange */
+    --yellow:   60 100% 60%; /* yellow */
+    --green:    135 94% 65%; /* green */
+    --teal:     191 97% 77%; /* cyan */
+    --sky:      191 97% 85%;
+    --sapphire: 191 97% 70%;
+    --pink:     326 100% 80%;
+  }
+
+  .theme-github-dark {
+    --crust:    210 20% 5%;
+    --mantle:   210 20% 7%;
+    --base:     210 20% 10%;
+    --surface0: 210 20% 15%;
+    --surface1: 210 20% 20%;
+    --surface2: 210 20% 25%;
+    --overlay0: 210 20% 45%;
+    --overlay1: 210 20% 65%;
+    --overlay2: 210 20% 75%;
+    --text:     210 20% 85%;
+    --subtext0: 210 20% 80%;
+    --subtext1: 210 20% 75%;
+
+    --blue:     212 92% 65%;
+    --lavender: 212 92% 75%;
+    --mauve:    270 50% 65%;
+    --red:      350 70% 60%;
+    --maroon:   350 70% 65%;
+    --peach:    25 80% 60%;
+    --yellow:   45 85% 60%;
+    --green:    120 40% 50%;
+    --teal:     180 50% 60%;
+    --sky:      195 85% 65%;
+    --sapphire: 210 80% 65%;
+    --pink:     330 60% 65%;
   }
 }
 

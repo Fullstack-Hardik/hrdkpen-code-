@@ -108,7 +108,7 @@ export const DocsViewer = () => {
       </div>
 
       {/* Main Iframe Viewer */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 bg-editor-bg">
         <div className="h-10 bg-editor-sidebar border-b border-editor-border flex items-center justify-between px-4 flex-shrink-0">
           <div className="text-xs text-editor-text-muted truncate flex-1 font-mono">
             {activeUrl}
@@ -122,23 +122,13 @@ export const DocsViewer = () => {
             <ExternalLink className="w-3 h-3" /> Open in New Tab
           </a>
         </div>
-        <div className="flex-1 relative bg-editor-bg flex items-center justify-center p-8 text-center">
-          <div className="max-w-sm">
-            <BookOpen className="w-12 h-12 text-editor-text-muted mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-editor-text mb-2">Documentation Topic</h3>
-            <p className="text-sm text-editor-text-muted mb-6">
-              To provide the best offline-capable experience, the full DevDocs reference opens in a dedicated tab.
-            </p>
-            <a
-              href={activeUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-md font-medium transition-colors"
-            >
-              <ExternalLink className="w-4 h-4" />
-              Open Reference
-            </a>
-          </div>
+        <div className="flex-1 relative bg-white">
+          <iframe
+            src={`https://corsproxy.io/?url=${encodeURIComponent(activeUrl)}`}
+            className="absolute inset-0 w-full h-full border-0"
+            title="DevDocs Reference"
+            sandbox="allow-scripts allow-same-origin allow-popups"
+          />
         </div>
       </div>
     </div>

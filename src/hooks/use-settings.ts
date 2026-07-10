@@ -26,6 +26,7 @@ export function useSettings() {
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    document.body.className = `theme-${settings.theme}`;
   }, [settings]);
 
   const update = useCallback(<K extends keyof EditorSettings>(

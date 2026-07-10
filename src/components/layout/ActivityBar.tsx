@@ -1,16 +1,17 @@
 import type { ReactNode } from 'react';
 import {
   FolderSearch,
-  Bot,
   Settings2,
   Files,
   TerminalSquare,
-  GitBranch,
   BookOpen,
   Image as ImageIcon,
+  FolderTree,
+  PenTool,
+  GraduationCap
 } from 'lucide-react';
 
-export type ActivityBarView = 'explorer' | 'search' | 'ai' | 'docs' | 'assets' | 'settings';
+export type ActivityBarView = 'explorer' | 'search' | 'projects' | 'excalidraw' | 'mdn' | 'learn' | 'settings' | 'docs' | 'assets';
 
 interface ActivityBarProps {
   active: ActivityBarView;
@@ -35,9 +36,12 @@ export const ActivityBar = ({
   errorCount,
 }: ActivityBarProps) => {
   const topItems: BarItem[] = [
-    { id: 'explorer', icon: <Files className="w-5 h-5" />,       label: 'Explorer (Ctrl+Shift+E)', position: 'top' },
-    { id: 'search',   icon: <FolderSearch className="w-5 h-5" />, label: 'Search (Ctrl+Shift+F)',   position: 'top' },
-    { id: 'ai',       icon: <Bot className="w-5 h-5" />,          label: 'AI Assistant',            position: 'top' },
+    { id: 'explorer',   icon: <Files className="w-5 h-5" />,       label: 'Explorer', position: 'top' },
+    { id: 'search',     icon: <FolderSearch className="w-5 h-5" />, label: 'Search',   position: 'top' },
+    { id: 'projects',   icon: <FolderTree className="w-5 h-5" />,   label: 'Projects', position: 'top' },
+    { id: 'excalidraw', icon: <PenTool className="w-5 h-5" />,      label: 'Whiteboard', position: 'top' },
+    { id: 'mdn',        icon: <BookOpen className="w-5 h-5" />,     label: 'MDN Web Docs', position: 'top' },
+    { id: 'learn',      icon: <GraduationCap className="w-5 h-5" />, label: 'Learn', position: 'top' },
   ];
 
   const bottomItems: BarItem[] = [
