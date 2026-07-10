@@ -8,7 +8,7 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '@/components/ui/context-menu';
-import { X, Monitor, Bot, Search, Minus, Square, BookOpen, Plus, Image as ImageIcon, PenTool, FolderTree, GraduationCap } from 'lucide-react';
+import { X, Monitor, Bot, Search, Minus, Square, BookOpen, Plus, Image as ImageIcon, PenTool, FolderTree, GraduationCap, Copy, Check } from 'lucide-react';
 
 import { SystemHeader } from './SystemHeader';
 import { FileExplorer } from './FileExplorer';
@@ -231,13 +231,44 @@ export const SmartCodeEditor = () => {
   // ─── Active file ───
   const activeFile = openTabs.find(t => t.id === activeTabId) ?? null;
 
-  // Keep open tab content in sync with workspace (for imports/renames from elsewhere)
+  // Keep open tab content in sync with workspace and auto-close deleted files
   useEffect(() => {
     setOpenTabs(prev => prev.map(t => {
+      if (t.id.startsWith('tool:')) return t;
       const fresh = workspace.findFile(t.id);
-      return fresh ? { ...t, content: fresh.content } : t;
-    }));
+      return fresh ? { ...t, content: fresh.content } : null;
+    }).filter(Boolean) as FileNode[]);
   }, [workspace.files]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-sync WebContainer structure back to Explorer when terminal creates files
+  const lastFSHashRef = useRef<string>('');
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const wc = await getWebContainer();
+        const getHash = async (path: string): Promise<string> => {
+          const entries = await wc.fs.readdir(path, { withFileTypes: true });
+          let h = '';
+          for (const e of entries) {
+            if (['node_modules', '.git', 'dist', '.next', '.nuxt', 'build'].includes(e.name)) continue;
+            h += e.name + (e.isDirectory() ? 'D' : 'F');
+            if (e.isDirectory()) {
+              h += await getHash(path === '/' ? `/${e.name}` : `${path}/${e.name}`);
+            }
+          }
+          return h;
+        };
+        const currentHash = await getHash('/');
+        if (lastFSHashRef.current && currentHash !== lastFSHashRef.current) {
+           const { readWebContainerFS } = await import('@/lib/webcontainer');
+           const wcNodes = await readWebContainerFS(workspace.files);
+           workspace.setWorkspaceFiles(wcNodes);
+        }
+        lastFSHashRef.current = currentHash;
+      } catch(e) {}
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [workspace.files, workspace.setWorkspaceFiles]);
 
   // ─── Live preview content ───
   const getHtmlContent = () => {
@@ -941,8 +972,7 @@ export const SmartCodeEditor = () => {
 
             {/* Panel content */}
             <div className="flex-1 overflow-hidden flex flex-col min-h-0">
-              {bottomTab === 'terminal' && (
-                <>
+              <div style={{ display: bottomTab === 'terminal' ? 'flex' : 'none' }} className="flex-col w-full h-full">
                   <div className="flex items-center gap-1 bg-editor-panel border-b border-editor-border px-2 pt-1 overflow-x-auto min-h-[28px]">
                     {terminals.map(term => (
                       <div
@@ -987,8 +1017,7 @@ export const SmartCodeEditor = () => {
                       </div>
                     ))}
                   </div>
-                </>
-              )}
+              </div>
               {bottomTab === 'output' && (
                 <OutputPanel
                   lines={outputLines}
@@ -1040,28 +1069,38 @@ export const SmartCodeEditor = () => {
               )}
               {bottomTab === 'help' && (
                 <div className="flex-1 overflow-y-auto p-4 bg-editor-bg text-editor-text custom-scrollbar">
-                  <div className="max-w-3xl mx-auto space-y-6">
+                  <div className="max-w-3xl mx-auto space-y-4">
                     <div>
-                      <h3 className="text-lg font-semibold text-emerald-400 mb-2 border-b border-editor-border pb-2">Available Commands</h3>
-                      <p className="text-sm text-editor-text-muted mb-4">You can type these commands directly into the terminal or use the quick-action buttons above.</p>
+                      <h3 className="text-lg font-semibold text-emerald-400 mb-2 border-b border-editor-border pb-2">Terminal Commands</h3>
+                      <p className="text-sm text-editor-text-muted mb-4">Click to copy a command to use in the terminal.</p>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-editor-panel border border-editor-border p-4 rounded-lg">
-                          <code className="text-blue-400 font-mono text-sm font-semibold bg-blue-500/10 px-2 py-1 rounded">npm run dev</code>
-                          <p className="text-sm text-editor-text-muted mt-2">Starts the Vite development server with Hot Module Replacement (HMR). Code changes will automatically reload the preview.</p>
-                        </div>
-                        <div className="bg-editor-panel border border-editor-border p-4 rounded-lg">
-                          <code className="text-blue-400 font-mono text-sm font-semibold bg-blue-500/10 px-2 py-1 rounded">npm run build</code>
-                          <p className="text-sm text-editor-text-muted mt-2">Creates an optimized production build of your application in the <code className="text-emerald-400">dist</code> folder.</p>
-                        </div>
-                        <div className="bg-editor-panel border border-editor-border p-4 rounded-lg">
-                          <code className="text-blue-400 font-mono text-sm font-semibold bg-blue-500/10 px-2 py-1 rounded">npm install</code>
-                          <p className="text-sm text-editor-text-muted mt-2">Installs all dependencies listed in your <code className="text-emerald-400">package.json</code>.</p>
-                        </div>
-                        <div className="bg-editor-panel border border-editor-border p-4 rounded-lg">
-                          <code className="text-blue-400 font-mono text-sm font-semibold bg-blue-500/10 px-2 py-1 rounded">help</code>
-                          <p className="text-sm text-editor-text-muted mt-2">Displays this help documentation panel.</p>
-                        </div>
+                      <div className="flex flex-col space-y-2">
+                        {[
+                          { cmd: 'npm run dev', desc: 'Starts the Vite dev server with Hot Module Replacement (HMR)' },
+                          { cmd: 'npm run build', desc: 'Creates an optimized production build in the dist folder' },
+                          { cmd: 'npm install', desc: 'Installs all dependencies listed in your package.json' },
+                          { cmd: 'help', desc: 'Displays this help documentation' },
+                        ].map(item => (
+                          <div key={item.cmd} className="flex items-center justify-between p-2 hover:bg-editor-panel/50 rounded group transition-colors">
+                            <div className="flex items-center gap-3">
+                              <code className="text-blue-400 font-mono text-sm bg-blue-500/10 px-2 py-1 rounded min-w-[120px] text-center">{item.cmd}</code>
+                              <span className="text-sm text-editor-text-muted">{item.desc}</span>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                navigator.clipboard.writeText(item.cmd);
+                                const btn = e.currentTarget;
+                                const original = btn.innerHTML;
+                                btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-400"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+                                setTimeout(() => btn.innerHTML = original, 2000);
+                              }}
+                              className="p-1.5 text-editor-text-dim opacity-0 group-hover:opacity-100 hover:text-editor-text hover:bg-editor-panel rounded transition-all"
+                              title="Copy command"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
