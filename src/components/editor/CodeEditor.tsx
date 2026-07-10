@@ -1,177 +1,252 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
 import { emmetHTML, emmetCSS } from 'emmet-monaco-es';
-import { Button } from '@/components/ui/button';
-import { Play, Save, Download, RotateCcw } from 'lucide-react';
+import type { EditorSettings } from '@/types';
+import { RUNNABLE_LANGUAGES } from '@/lib/languages';
+
+export interface EditorAPI {
+  format: () => void;
+  goToLine: (line: number, col: number) => void;
+}
 
 interface CodeEditorProps {
   value: string;
   onChange: (value: string) => void;
   language: string;
   fileName: string;
-  onRun?: (code: string, language: string, fileName: string) => void;
+  settings: EditorSettings;
+  /** Called when the user triggers run (Ctrl+Enter) */
+  onRun?: () => void;
+  onCursorChange?: (line: number, col: number) => void;
   onErrors?: (errors: { line: number; message: string }[]) => void;
+  onSelectionChange?: (text: string, pos: { top: number; left: number; height: number } | null) => void;
+  /** Called once when Monaco is mounted — exposes format/goToLine imperatively */
+  onEditorReady?: (api: EditorAPI) => void;
 }
 
-export const CodeEditor = ({ value, onChange, language, fileName, onRun, onErrors }: CodeEditorProps) => {
-  const editorRef = useRef<any>(null);
-  const [isRunning, setIsRunning] = useState(false);
+// Catppuccin Mocha Monaco themes — synced with index.css design tokens
+const THEMES: Record<string, Parameters<any['editor']['defineTheme']>[1]> = {
+  'smart-dark': {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'keyword',    foreground: 'cba6f7' },  // mauve
+      { token: 'string',     foreground: 'a6e3a1' },  // green
+      { token: 'number',     foreground: 'fab387' },  // peach
+      { token: 'comment',    foreground: '585b70', fontStyle: 'italic' },  // surface2
+      { token: 'identifier', foreground: '89dceb' },  // sky
+      { token: 'type',       foreground: '94e2d5' },  // teal
+      { token: 'function',   foreground: '89b4fa' },  // blue
+      { token: 'variable',   foreground: 'cdd6f4' },  // text
+      { token: 'tag',        foreground: 'f38ba8' },  // red
+      { token: 'attribute.name', foreground: 'fab387' }, // peach
+    ],
+    colors: {
+      'editor.background':               '#1e1e2e',
+      'editor.foreground':               '#cdd6f4',
+      'editorLineNumber.foreground':     '#45475a',
+      'editorLineNumber.activeForeground': '#cdd6f4',
+      'editor.selectionBackground':      '#585b7044',
+      'editor.lineHighlightBackground':  '#181825',
+      'editorCursor.foreground':         '#f5c2e7',
+      'editor.wordHighlightBackground':  '#313244',
+      'editorBracketMatch.background':   '#45475a',
+      'editorBracketMatch.border':       '#89b4fa',
+      'editorGutter.background':         '#1e1e2e',
+      'editorWidget.background':         '#181825',
+      'editorSuggestWidget.background':  '#181825',
+      'editorSuggestWidget.border':      '#313244',
+      'editorSuggestWidget.selectedBackground': '#313244',
+      'input.background':                '#181825',
+      'dropdown.background':             '#181825',
+    },
+  },
+  'github-dark': {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'keyword',  foreground: 'ff7b72' },
+      { token: 'string',   foreground: 'a5d6ff' },
+      { token: 'number',   foreground: '79c0ff' },
+      { token: 'comment',  foreground: '8b949e', fontStyle: 'italic' },
+      { token: 'type',     foreground: 'ffa657' },
+    ],
+    colors: {
+      'editor.background':           '#0d1117',
+      'editor.foreground':           '#e6edf3',
+      'editorLineNumber.foreground': '#484f58',
+      'editor.lineHighlightBackground': '#161b22',
+    },
+  },
+  'monokai': {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'keyword',  foreground: 'F92672' },
+      { token: 'string',   foreground: 'E6DB74' },
+      { token: 'number',   foreground: 'AE81FF' },
+      { token: 'comment',  foreground: '75715E', fontStyle: 'italic' },
+      { token: 'type',     foreground: '66D9EF', fontStyle: 'italic' },
+    ],
+    colors: {
+      'editor.background':           '#272822',
+      'editor.foreground':           '#F8F8F2',
+      'editorLineNumber.foreground': '#90908A',
+      'editor.lineHighlightBackground': '#3E3D32',
+      'editorCursor.foreground':     '#F8F8F0',
+    },
+  },
+};
 
-  const handleEditorDidMount = (editor: any, monaco: any) => {
+let themesRegistered = false;
+
+export const CodeEditor = ({
+  value,
+  onChange,
+  language,
+  fileName,
+  settings,
+  onRun,
+  onCursorChange,
+  onErrors,
+  onSelectionChange,
+  onEditorReady,
+}: CodeEditorProps) => {
+  const editorRef = useRef<any>(null);
+  const monacoRef = useRef<any>(null);
+
+  const handleMount = useCallback((editor: any, monaco: any) => {
     editorRef.current = editor;
-    
-    // Configure Monaco Editor with VS Code-like settings
-    monaco.editor.defineTheme('smart-dark', {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [
-        { token: 'keyword', foreground: 'C586C0' },
-        { token: 'string', foreground: 'CE9178' },
-        { token: 'number', foreground: 'B5CEA8' },
-        { token: 'comment', foreground: '6A9955' },
-        { token: 'identifier', foreground: '9CDCFE' },
-        { token: 'delimiter', foreground: 'D4D4D4' },
-      ],
-      colors: {
-        'editor.background': '#1e1e2e',
-        'editor.foreground': '#cdd6f4',
-        'editorLineNumber.foreground': '#6c7086',
-        'editor.selectionBackground': '#45475a',
-        'editor.lineHighlightBackground': '#313244',
-        'editorCursor.foreground': '#f5e0dc',
-        'editor.wordHighlightBackground': '#45475a',
-        'editor.wordHighlightStrongBackground': '#585b70',
-      }
-    });
-    
-    monaco.editor.setTheme('smart-dark');
-    
-    // Enable Emmet and enhance language services
+    monacoRef.current = monaco;
+
+    // Register themes once
+    if (!themesRegistered) {
+      Object.entries(THEMES).forEach(([name, def]) => {
+        monaco.editor.defineTheme(name, def);
+      });
+      themesRegistered = true;
+    }
+    monaco.editor.setTheme(settings.theme);
+
+    // Emmet
     try {
       emmetHTML(monaco);
       emmetCSS(monaco);
-    } catch (e) {
-      console.warn('Emmet init failed', e);
-    }
+    } catch { /* non-fatal */ }
 
-    // Enhanced Language Support for JavaScript/TypeScript
-    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false });
-    monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false });
-    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
-      allowJs: true,
-      checkJs: false,
-      allowNonTsExtensions: true,
+    // JS/TS diagnostics
+    const jsDefaults = monaco.languages.typescript.javascriptDefaults;
+    const tsDefaults = monaco.languages.typescript.typescriptDefaults;
+    jsDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false });
+    tsDefaults.setDiagnosticsOptions({ noSemanticValidation: false, noSyntaxValidation: false });
+    jsDefaults.setCompilerOptions({
+      allowJs: true, checkJs: false, allowNonTsExtensions: true,
       module: monaco.languages.typescript.ModuleKind.ESNext,
       target: monaco.languages.typescript.ScriptTarget.ES2020,
       lib: ['es2020', 'dom'],
     });
-    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-      target: monaco.languages.typescript.ScriptTarget.ES2020,
-      module: monaco.languages.typescript.ModuleKind.ESNext,
-      lib: ['es2020', 'dom'],
+
+    // C/C++ completion snippets
+    const cSnippets = [
+      { label: '#include', insertText: '#include <${1:stdio.h}>', documentation: 'Include header' },
+      { label: 'main',     insertText: 'int main() {\n\t${1:// code}\n\treturn 0;\n}', documentation: 'Main function' },
+      { label: 'printf',   insertText: 'printf("${1:%s}\\n", ${2:arg});', documentation: 'Print formatted' },
+      { label: 'scanf',    insertText: 'scanf("${1:%d}", &${2:var});', documentation: 'Scan input' },
+    ].map(s => ({
+      ...s,
+      kind: monaco.languages.CompletionItemKind.Snippet,
+      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+    }));
+
+    ['c', 'cpp'].forEach(lang => {
+      monaco.languages.registerCompletionItemProvider(lang, {
+        provideCompletionItems: () => ({ suggestions: cSnippets }),
+      });
     });
 
-    // Python Language Support with common keywords and snippets
+    // Python completion
+    const pySnippets = [
+      { label: 'def',    insertText: 'def ${1:name}(${2:params}):\n\t${3:pass}', documentation: 'Function' },
+      { label: 'class',  insertText: 'class ${1:Name}:\n\tdef __init__(self):\n\t\t${2:pass}', documentation: 'Class' },
+      { label: 'for',    insertText: 'for ${1:item} in ${2:iterable}:\n\t${3:pass}', documentation: 'For loop' },
+      { label: 'while',  insertText: 'while ${1:cond}:\n\t${2:pass}', documentation: 'While loop' },
+      { label: 'if',     insertText: 'if ${1:cond}:\n\t${2:pass}', documentation: 'If' },
+      { label: 'try',    insertText: 'try:\n\t${1:pass}\nexcept ${2:Exception} as e:\n\t${3:pass}', documentation: 'Try/except' },
+      { label: 'print',  insertText: 'print(${1:value})', documentation: 'Print' },
+      { label: 'import', insertText: 'import ${1:module}', documentation: 'Import' },
+      { label: 'from',   insertText: 'from ${1:module} import ${2:name}', documentation: 'From import' },
+    ].map(s => ({
+      ...s,
+      kind: monaco.languages.CompletionItemKind.Snippet,
+      insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+    }));
     monaco.languages.registerCompletionItemProvider('python', {
-      provideCompletionItems: () => {
-        return {
-          suggestions: [
-            { label: 'print', kind: monaco.languages.CompletionItemKind.Function, insertText: 'print(${1:value})', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Print to console' },
-            { label: 'def', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'def ${1:function_name}(${2:params}):\n\t${3:pass}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Define function' },
-            { label: 'class', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'class ${1:ClassName}:\n\tdef __init__(self${2:, params}):\n\t\t${3:pass}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Define class' },
-            { label: 'if', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'if ${1:condition}:\n\t${2:pass}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'If statement' },
-            { label: 'for', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'for ${1:item} in ${2:iterable}:\n\t${3:pass}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'For loop' },
-            { label: 'while', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'while ${1:condition}:\n\t${2:pass}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'While loop' },
-            { label: 'import', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'import ${1:module}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Import module' },
-            { label: 'from', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'from ${1:module} import ${2:name}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Import from module' },
-            { label: 'try', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'try:\n\t${1:pass}\nexcept ${2:Exception} as ${3:e}:\n\t${4:pass}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Try-except block' },
-            { label: 'with', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'with ${1:expression} as ${2:variable}:\n\t${3:pass}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'With statement' },
-            // Common Python libraries
-            { label: 'numpy', kind: monaco.languages.CompletionItemKind.Module, insertText: 'import numpy as np', documentation: 'NumPy library' },
-            { label: 'pandas', kind: monaco.languages.CompletionItemKind.Module, insertText: 'import pandas as pd', documentation: 'Pandas library' },
-            { label: 'matplotlib', kind: monaco.languages.CompletionItemKind.Module, insertText: 'import matplotlib.pyplot as plt', documentation: 'Matplotlib library' },
-          ]
-        };
-      }
+      provideCompletionItems: () => ({ suggestions: pySnippets }),
     });
 
-    // Java Language Support
-    monaco.languages.registerCompletionItemProvider('java', {
-      provideCompletionItems: () => {
-        return {
-          suggestions: [
-            { label: 'public class', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'public class ${1:ClassName} {\n\tpublic static void main(String[] args) {\n\t\t${2:// code}\n\t}\n}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Public class with main method' },
-            { label: 'System.out.println', kind: monaco.languages.CompletionItemKind.Function, insertText: 'System.out.println(${1:message});', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Print to console' },
-            { label: 'public static void', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'public static void ${1:methodName}(${2:params}) {\n\t${3:// code}\n}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Static method' },
-            { label: 'if', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'if (${1:condition}) {\n\t${2:// code}\n}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'If statement' },
-            { label: 'for', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'for (${1:int i = 0}; ${2:i < n}; ${3:i++}) {\n\t${4:// code}\n}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'For loop' },
-            { label: 'while', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'while (${1:condition}) {\n\t${2:// code}\n}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'While loop' },
-            { label: 'try-catch', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'try {\n\t${1:// code}\n} catch (${2:Exception} ${3:e}) {\n\t${4:// handle}\n}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Try-catch block' },
-          ]
-        };
-      }
-    });
-
-    // C/C++ Language Support
-    const cppSuggestions = [
-      { label: '#include', kind: monaco.languages.CompletionItemKind.Keyword, insertText: '#include <${1:iostream}>', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Include header' },
-      { label: 'main', kind: monaco.languages.CompletionItemKind.Function, insertText: 'int main() {\n\t${1:// code}\n\treturn 0;\n}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Main function' },
-      { label: 'printf', kind: monaco.languages.CompletionItemKind.Function, insertText: 'printf("${1:format}", ${2:args});', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'Print formatted' },
-      { label: 'cout', kind: monaco.languages.CompletionItemKind.Function, insertText: 'std::cout << ${1:value} << std::endl;', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'C++ output' },
-      { label: 'if', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'if (${1:condition}) {\n\t${2:// code}\n}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'If statement' },
-      { label: 'for', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'for (${1:int i = 0}; ${2:i < n}; ${3:i++}) {\n\t${4:// code}\n}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'For loop' },
-      { label: 'while', kind: monaco.languages.CompletionItemKind.Keyword, insertText: 'while (${1:condition}) {\n\t${2:// code}\n}', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, documentation: 'While loop' },
-    ];
-    
-    monaco.languages.registerCompletionItemProvider('c', {
-      provideCompletionItems: () => ({ suggestions: cppSuggestions })
-    });
-    monaco.languages.registerCompletionItemProvider('cpp', {
-      provideCompletionItems: () => ({ suggestions: cppSuggestions })
-    });
-    
-    // Track markers for error reporting
-    const updateErrors = () => {
+    // Error markers
+    monaco.editor.onDidChangeMarkers(() => {
       const markers = monaco.editor.getModelMarkers({ resource: editor.getModel()?.uri });
-      const errorMarkers = markers
-        .filter((m: any) => m.severity === monaco.MarkerSeverity.Error)
-        .map((m: any) => ({ line: m.startLineNumber, message: m.message }));
-      onErrors?.(errorMarkers);
-    };
-
-    // Listen for marker changes
-    monaco.editor.onDidChangeMarkers(() => updateErrors());
-    
-    // Add keyboard shortcuts
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      handleSave();
+      onErrors?.(
+        markers
+          .filter((m: any) => m.severity === monaco.MarkerSeverity.Error)
+          .map((m: any) => ({ line: m.startLineNumber, message: m.message }))
+      );
     });
-    
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      handleRun();
+
+    // Cursor position
+    editor.onDidChangeCursorPosition((e: any) => {
+      onCursorChange?.(e.position.lineNumber, e.position.column);
     });
-  };
 
-  const handleSave = () => {
-    // Auto-save functionality will be implemented
-    console.log('Saving file:', fileName);
-  };
+    // Selection tracking for Smart Popup
+    editor.onDidChangeCursorSelection((e: any) => {
+      const selection = editor.getModel()?.getValueInRange(e.selection);
+      if (!selection || !selection.trim()) {
+        onSelectionChange?.('', null);
+        return;
+      }
+      
+      const startPos = editor.getScrolledVisiblePosition({
+        lineNumber: e.selection.startLineNumber,
+        column: e.selection.startColumn,
+      });
+      const endPos = editor.getScrolledVisiblePosition({
+        lineNumber: e.selection.endLineNumber,
+        column: e.selection.endColumn,
+      });
+      
+      if (startPos && endPos) {
+        onSelectionChange?.(selection, {
+          top: startPos.top,
+          left: startPos.left,
+          height: Math.max(20, endPos.top - startPos.top),
+        });
+      } else {
+        onSelectionChange?.('', null);
+      }
+    });
 
-  const handleRun = () => {
-    const runnableLanguages = ['javascript', 'typescript', 'python', 'java', 'c', 'cpp'];
-    if (runnableLanguages.includes(language)) {
-      setIsRunning(true);
-      const code = editorRef.current?.getValue?.() ?? value;
-      onRun?.(code, language, fileName);
-      setTimeout(() => setIsRunning(false), 500);
-    }
-  };
+    // Expose API to parent
+    onEditorReady?.({
+      format: () => editor.getAction('editor.action.formatDocument')?.run(),
+      goToLine: (line: number, col: number) => {
+        editor.setPosition({ lineNumber: line, column: col });
+        editor.revealLineInCenter(line);
+        editor.focus();
+      },
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleFormat = () => {
-    if (editorRef.current) {
-      editorRef.current.getAction('editor.action.formatDocument').run();
-    }
-  };
+  // Sync theme when settings change
+  useEffect(() => {
+    monacoRef.current?.editor.setTheme(settings.theme);
+  }, [settings.theme]);
+
+  const handleRun = useCallback(() => {
+    if (!RUNNABLE_LANGUAGES.has(language)) return;
+    onRun?.();
+  }, [language, onRun]);
 
   const handleDownload = () => {
     const blob = new Blob([value], { type: 'text/plain' });
@@ -183,113 +258,56 @@ export const CodeEditor = ({ value, onChange, language, fileName, onRun, onError
     URL.revokeObjectURL(url);
   };
 
-  return (
-    <div className="flex flex-col h-full">
-      {/* Editor Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 editor-header border-b border-border">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-editor-text">{fileName}</span>
-          <div className="w-2 h-2 rounded-full bg-editor-accent animate-pulse" />
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleFormat}
-            className="h-7 px-2 text-editor-text-muted hover:text-editor-text"
-          >
-            <RotateCcw className="w-3 h-3 mr-1" />
-            Format
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleSave}
-            className="h-7 px-2 text-editor-text-muted hover:text-editor-text"
-          >
-            <Save className="w-3 h-3 mr-1" />
-            Save
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={handleDownload}
-            className="h-7 px-2 text-editor-text-muted hover:text-editor-text"
-          >
-            <Download className="w-3 h-3 mr-1" />
-            Export
-          </Button>
-          
-          {['javascript', 'typescript', 'python', 'java', 'c', 'cpp'].includes(language) && (
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={handleRun}
-              disabled={isRunning}
-              className="h-7 px-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-sm hover:shadow-md transition-all"
-            >
-              <Play className="w-3.5 h-3.5 mr-1.5 fill-white" />
-              {isRunning ? 'Running...' : 'Run'}
-            </Button>
-          )}
-        </div>
-      </div>
+  const handleFormat = () => {
+    editorRef.current?.getAction('editor.action.formatDocument')?.run();
+  };
 
-      {/* Monaco Editor */}
-      <div className="flex-1">
-        <Editor
-          value={value}
-          language={language}
-          onChange={(newValue) => onChange(newValue || '')}
-          onMount={handleEditorDidMount}
-          options={{
-            minimap: { enabled: true },
-            fontSize: 14,
-            fontFamily: 'Fira Code, JetBrains Mono, Monaco, monospace',
-            fontLigatures: true,
-            lineNumbers: 'on',
-            rulers: [80, 120],
-            wordWrap: 'on',
-            automaticLayout: true,
-            scrollBeyondLastLine: false,
-            smoothScrolling: true,
-            cursorBlinking: 'smooth',
-            cursorSmoothCaretAnimation: true,
-            renderWhitespace: 'selection',
-            autoIndent: 'full',
-            autoClosingBrackets: 'always',
-            autoClosingQuotes: 'always',
-            autoClosingOvertype: 'auto',
-            suggestOnTriggerCharacters: true,
-            tabCompletion: 'on',
-            snippetSuggestions: 'inline',
-            wordBasedSuggestions: 'currentDocument',
-            bracketPairColorization: { enabled: true },
-            guides: {
-              bracketPairs: true,
-              indentation: true,
-            },
-            suggest: {
-              showKeywords: true,
-              showSnippets: true,
-              showClasses: true,
-              showFunctions: true,
-              showVariables: true,
-            },
-            quickSuggestions: {
-              other: true,
-              comments: true,
-              strings: true,
-            },
-            parameterHints: { enabled: true },
-            formatOnPaste: true,
-            formatOnType: true,
-          }}
-        />
-      </div>
+  const isRunnable = RUNNABLE_LANGUAGES.has(language);
+
+  return (
+    <div className="h-full min-h-0">
+      <Editor
+        value={value}
+        language={language}
+        onChange={v => onChange(v ?? '')}
+        onMount={handleMount}
+        options={{
+          fontSize: settings.fontSize,
+          fontFamily: settings.fontFamily,
+          fontLigatures: true,
+          lineNumbers: settings.lineNumbers ? 'on' : 'off',
+          wordWrap: settings.wordWrap ? 'on' : 'off',
+          minimap: { enabled: settings.minimap },
+          tabSize: settings.tabSize,
+          rulers: [80, 120],
+          automaticLayout: true,
+          scrollBeyondLastLine: false,
+          smoothScrolling: true,
+          cursorBlinking: 'smooth',
+          cursorSmoothCaretAnimation: 'on',
+          renderWhitespace: 'selection',
+          autoIndent: 'full',
+          autoClosingBrackets: 'always',
+          autoClosingQuotes: 'always',
+          suggestOnTriggerCharacters: true,
+          tabCompletion: 'on',
+          snippetSuggestions: 'inline',
+          wordBasedSuggestions: 'currentDocument',
+          bracketPairColorization: { enabled: true },
+          guides: { bracketPairs: true, indentation: true },
+          suggest: {
+            showKeywords: true,
+            showSnippets: true,
+            showClasses: true,
+            showFunctions: true,
+            showVariables: true,
+          },
+          quickSuggestions: { other: true, comments: false, strings: false },
+          parameterHints: { enabled: true },
+          formatOnPaste: false,
+          formatOnType: false,
+        }}
+      />
     </div>
   );
 };

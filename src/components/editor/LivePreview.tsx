@@ -1,289 +1,296 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Monitor, 
-  RefreshCw, 
-  ExternalLink,
-  Eye,
-  EyeOff,
-  Smartphone,
-  Tablet,
-  Laptop,
-  Download
+import {
+  RefreshCw, ExternalLink, Download, Monitor,
+  Smartphone, Tablet, Laptop, Bug
 } from 'lucide-react';
-import JSZip from 'jszip';
 
 interface LivePreviewProps {
   htmlContent: string;
   cssContent: string;
   jsContent: string;
   activeFileName?: string;
+  /** Called whenever the iframe sends console messages */
+  onConsoleMessage?: (type: 'log' | 'warn' | 'error' | 'info', args: string[]) => void;
+  serverUrl?: string | null;
 }
 
-export const LivePreview = ({ htmlContent, cssContent, jsContent, activeFileName }: LivePreviewProps) => {
-  const [isVisible, setIsVisible] = useState(true);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [previewMode, setPreviewMode] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+function buildDocument(html: string, css: string, js: string, injectEruda = false): string {
+  const erudaScript = injectEruda ? `<script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init();</script>` : '';
+  
+  // Inject console capture + postMessage bridge into preview
+  const bridge = `
+<script>
+(function() {
+  function send(type, args) {
+    window.parent.postMessage({ __hrdkpen_preview: true, type, args }, '*');
+  }
+  const _c = console;
+  ['log','warn','error','info'].forEach(m => {
+    console[m] = (...a) => {
+      send(m, a.map(v => {
+        try { return typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v); }
+        catch { return String(v); }
+      }));
+      _c[m](...a);
+    };
+  });
+  window.onerror = (msg, src, line) => {
+    send('error', [msg + (line ? ' (line ' + line + ')' : '')]);
+    return false;
+  };
+  window.addEventListener('unhandledrejection', e => {
+    send('error', ['Unhandled Promise: ' + String(e.reason?.message || e.reason)]);
+  });
 
-  // Auto-refresh when content changes
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      setRefreshKey(prev => prev + 1);
-    }, 500); // Debounce updates
-    
-    return () => clearTimeout(timeoutId);
-  }, [htmlContent, cssContent, jsContent]);
+  // Bypass COEP block for images
+  const fixImg = (img) => {
+    if (img.src && !img.src.startsWith('data:') && !img.src.includes('corsproxy.io') && !img.src.startsWith('blob:')) {
+      img.crossOrigin = 'anonymous';
+      img.src = 'https://corsproxy.io/?url=' + encodeURIComponent(img.src);
+    }
+  };
+  const observer = new MutationObserver(mutations => {
+    mutations.forEach(m => {
+      if (m.attributeName === 'src') fixImg(m.target);
+      m.addedNodes.forEach(node => {
+        if (node.tagName === 'IMG') fixImg(node);
+        else if (node.querySelectorAll) node.querySelectorAll('img').forEach(fixImg);
+      });
+    });
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+  window.addEventListener('DOMContentLoaded', () => document.querySelectorAll('img').forEach(fixImg));
+})();
+<\/script>`;
 
-  const generatePreviewContent = () => {
-    return `
-<!DOCTYPE html>
+  // If user wrote full HTML document, inject bridge + CSS
+  if (/<!doctype\s+html/i.test(html)) {
+    return html
+      .replace(/<head([^>]*)>/i, `<head$1><style>${css}</style>${bridge}${erudaScript}`)
+      .replace(/<\/body>/i, `<script>\ntry { ${js} } catch(e) { console.error(e.message); }\n<\/script></body>`);
+  }
+
+  // Otherwise compose a document
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Preview</title>
-    <style>
-        body { 
-            margin: 0; 
-            padding: 20px; 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #ffffff;
-            color: #333333;
-        }
-        .console-output {
-          position: fixed;
-          bottom: 10px;
-          right: 10px;
-          background: #1a1a1a;
-          color: #fff;
-          padding: 10px;
-          border-radius: 6px;
-          max-width: 300px;
-          max-height: 200px;
-          overflow-y: auto;
-          font-family: monospace;
-          font-size: 12px;
-          display: none;
-          z-index: 1000;
-        }
-        .console-toggle {
-          position: fixed;
-          bottom: 10px;
-          right: 10px;
-          background: #007acc;
-          color: white;
-          border: none;
-          padding: 8px;
-          border-radius: 4px;
-          cursor: pointer;
-          z-index: 1001;
-        }
-        ${cssContent}
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Preview</title>
+  ${bridge}
+  ${erudaScript}
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; font-family: system-ui, sans-serif; color: #1a1a1a; background: #fff; }
+    ${css}
+  </style>
 </head>
 <body>
-    ${htmlContent}
-        
-        <script>
-        // Enable dev tools inspection
-        try {
-            ${jsContent}
-        } catch (error) {
-            console.error('JavaScript Error:', error.message);
-        }
-    </script>
+  ${html}
+  <script>
+    try { ${js} } catch(e) { console.error(e.message + (e.stack ? '\\n' + e.stack.split('\\n').slice(1,3).join('\\n') : '')); }
+  <\/script>
 </body>
-</html>
-    `;
-  };
+</html>`;
+}
 
-  const handleRefresh = () => {
-    setRefreshKey(prev => prev + 1);
-  };
+type DeviceMode = 'desktop' | 'tablet' | 'mobile';
 
-  const openInNewTab = () => {
-    const newWindow = window.open();
-    if (newWindow) {
-      newWindow.document.write(generatePreviewContent());
-      newWindow.document.close();
-    }
-  };
+const DEVICE_SIZES: Record<DeviceMode, { w: string; h: string }> = {
+  desktop: { w: '100%',  h: '100%'  },
+  tablet:  { w: '768px', h: '90%'   },
+  mobile:  { w: '375px', h: '667px' },
+};
 
-  const downloadFile = async () => {
-    try {
-      const content = generatePreviewContent();
-      const blob = new Blob([content], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = activeFileName || 'preview.html';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Failed to download file:', error);
-    }
-  };
+export const LivePreview = ({
+  htmlContent,
+  cssContent,
+  jsContent,
+  activeFileName,
+  onConsoleMessage,
+  serverUrl,
+}: LivePreviewProps) => {
+  const [device, setDevice]       = useState<DeviceMode>('desktop');
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [inspectEnabled, setInspectEnabled] = useState(false);
 
-  const getPreviewDimensions = () => {
-    switch (previewMode) {
-      case 'mobile':
-        return { width: '375px', height: '667px' };
-      case 'tablet':
-        return { width: '768px', height: '1024px' };
-      default:
-        return { width: '100%', height: '100%' };
-    }
-  };
+  // Debounced auto-refresh
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const id = setTimeout(() => setRefreshKey(k => k + 1), 600);
+    return () => clearTimeout(id);
+  }, [htmlContent, cssContent, jsContent, autoRefresh]);
+
+  // Listen to postMessages from the preview iframe
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (!e.data?.__hrdkpen_preview) return;
+      onConsoleMessage?.(e.data.type, e.data.args);
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [onConsoleMessage]);
+
+  const openInNewTab = useCallback(() => {
+    const doc = buildDocument(htmlContent, cssContent, jsContent);
+    const win = window.open('', '_blank');
+    if (win) { win.document.write(doc); win.document.close(); }
+  }, [htmlContent, cssContent, jsContent]);
+
+  const download = useCallback(() => {
+    const doc = buildDocument(htmlContent, cssContent, jsContent);
+    const blob = new Blob([doc], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = activeFileName ?? 'preview.html';
+    a.click(); URL.revokeObjectURL(url);
+  }, [htmlContent, cssContent, jsContent, activeFileName]);
+
+  const hasContent = !!(htmlContent.trim() || cssContent.trim() || jsContent.trim());
+  const dim = DEVICE_SIZES[device];
 
   return (
-    <div className="flex flex-col h-full editor-panel">
-      {/* Preview Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
-        <div className="flex items-center gap-2">
-          <Monitor className="w-4 h-4 text-editor-accent" />
-          {activeFileName && (
-            <Badge variant="secondary" className="text-xs">
-              {activeFileName}
-            </Badge>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {/* Device Preview Modes */}
-          <div className="flex items-center gap-1 border border-border rounded">
-            <Button 
-              variant={previewMode === 'desktop' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setPreviewMode('desktop')}
-              className="h-6 px-2"
-              title="Desktop View"
-            >
-              <Laptop className="w-3 h-3" />
-            </Button>
-            <Button 
-              variant={previewMode === 'tablet' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setPreviewMode('tablet')}
-              className="h-6 px-2"
-              title="Tablet View"
-            >
-              <Tablet className="w-3 h-3" />
-            </Button>
-            <Button 
-              variant={previewMode === 'mobile' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setPreviewMode('mobile')}
-              className="h-6 px-2"
-              title="Mobile View"
-            >
-              <Smartphone className="w-3 h-3" />
-            </Button>
+    <div className="flex flex-col h-full bg-editor-bg">
+      {/* Toolbar */}
+      <div
+        className="flex items-center justify-between px-3 flex-shrink-0"
+        style={{
+          height: 36,
+          borderBottom: '1px solid hsl(var(--surface1))',
+          background: 'hsl(var(--mantle))',
+        }}
+      >
+        <div className="flex flex-1 items-center gap-2 mr-4 min-w-0">
+          <Monitor className="w-3.5 h-3.5 text-editor-text-muted flex-shrink-0" />
+          <span className="text-xs text-editor-text-muted font-medium flex-shrink-0">Preview</span>
+          <div className="flex items-center bg-editor-panel border border-editor-border rounded px-2 h-6 flex-1 max-w-[300px] min-w-[100px]">
+            <span className="text-[10px] text-editor-text-dim truncate select-all">
+              {serverUrl || 'https://hrdkpen.vercel.app/'}
+            </span>
           </div>
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => setIsVisible(!isVisible)}
-            className="h-7 px-2"
-            title="Toggle Visibility"
+        </div>
+
+        <div className="flex items-center gap-1">
+          {/* Device selector */}
+          <div className="flex items-center border border-editor-border rounded overflow-hidden">
+            {([
+              ['desktop', <Laptop className="w-3 h-3" />, 'Desktop'],
+              ['tablet',  <Tablet className="w-3 h-3" />, 'Tablet'],
+              ['mobile',  <Smartphone className="w-3 h-3" />, 'Mobile (375px)'],
+            ] as const).map(([mode, icon, label]) => (
+              <button
+                key={mode}
+                onClick={() => setDevice(mode as DeviceMode)}
+                title={label}
+                className="px-2 py-1 transition-fast"
+                style={{
+                  background: device === mode ? 'hsl(var(--surface0))' : 'transparent',
+                  color: device === mode ? 'hsl(var(--text))' : 'hsl(var(--overlay1))',
+                }}
+              >
+                {icon}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setInspectEnabled(v => !v)}
+            title="Toggle Inspect (Eruda DevTools)"
+            className="px-2 py-1 text-xs rounded transition-fast flex items-center gap-1"
+            style={{
+              background: inspectEnabled ? 'hsl(var(--blue) / 0.15)' : 'transparent',
+              color: inspectEnabled ? 'hsl(var(--blue))' : 'hsl(var(--overlay1))',
+            }}
           >
-            {isVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={downloadFile}
-            className="h-7 px-2"
-            title="Download File"
+            <Bug className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={() => setAutoRefresh(v => !v)}
+            title={autoRefresh ? 'Auto-refresh ON — click to disable' : 'Auto-refresh OFF — click to enable'}
+            className="px-2 py-1 text-xs rounded transition-fast"
+            style={{
+              background: autoRefresh ? 'hsl(var(--green) / 0.15)' : 'transparent',
+              color: autoRefresh ? 'hsl(var(--green))' : 'hsl(var(--overlay1))',
+            }}
           >
-            <Download className="w-3 h-3" />
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={handleRefresh}
-            className="h-7 px-2"
-            title="Refresh"
+            Auto
+          </button>
+
+          <button
+            onClick={() => setRefreshKey(k => k + 1)}
+            title="Refresh preview"
+            className="p-1 rounded hover:bg-editor-active-tab transition-fast text-editor-text-muted hover:text-editor-text"
           >
-            <RefreshCw className="w-3 h-3" />
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={download}
+            title="Download as HTML"
+            className="p-1 rounded hover:bg-editor-active-tab transition-fast text-editor-text-muted hover:text-editor-text"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </button>
+
+          <button
             onClick={openInNewTab}
-            className="h-7 px-2"
-            title="Open in New Tab"
+            title="Open in new tab"
+            className="p-1 rounded hover:bg-editor-active-tab transition-fast text-editor-text-muted hover:text-editor-text"
           >
-            <ExternalLink className="w-3 h-3" />
-          </Button>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
-      {/* Preview Content */}
-      <div className="flex-1 flex items-center justify-center p-4 overflow-auto" style={{ userSelect: 'text' }}>
-        {isVisible ? (
-          (htmlContent.trim() || cssContent.trim() || jsContent.trim()) ? (
-            <div 
-              className="border border-border rounded-lg overflow-hidden shadow-lg bg-white mx-auto"
-              style={{
-                ...getPreviewDimensions(),
-                maxWidth: '100%',
-                maxHeight: '100%'
-              }}
-            >
+      {/* Preview area */}
+      <div className="flex-1 overflow-auto flex items-start justify-center p-3 bg-[hsl(var(--crust))]">
+        {hasContent ? (
+          <div
+            className="overflow-hidden rounded border border-editor-border shadow-lg bg-white relative"
+            style={{
+              width: dim.w,
+              height: dim.h === '100%' ? 'calc(100% - 0px)' : dim.h,
+              minHeight: dim.h === '100%' ? '100%' : dim.h,
+              transition: 'width 0.2s ease, height 0.2s ease',
+            }}
+          >
+            {serverUrl ? (
               <iframe
                 key={refreshKey}
-                srcDoc={generatePreviewContent()}
-                className="w-full h-full"
-                title="Live Preview"
-                sandbox="allow-scripts allow-same-origin allow-popups allow-modals"
-                style={{ userSelect: 'text' }}
-                onLoad={(e) => {
-                  const iframe = e.target as HTMLIFrameElement;
-                  if (iframe.contentDocument) {
-                    const title = iframe.contentDocument.title || activeFileName || 'Preview';
-                    // Update browser tab title
-                    document.title = `${title} - HardkPen Code Editor`;
-                    
-                    // Override link clicks to prevent navigation
-                    iframe.contentDocument.addEventListener('click', (event) => {
-                      const target = event.target as HTMLElement;
-                      if (target.tagName === 'A') {
-                        event.preventDefault();
-                        const href = (target as HTMLAnchorElement).href;
-                        if (href && !href.startsWith('javascript:') && !href.startsWith('#')) {
-                          window.open(href, '_blank');
-                        }
-                      }
-                    });
-                  }
-                }}
+                src={serverUrl}
+                className="w-full h-full border-0"
+                title="Live Server Preview"
+                allow="cross-origin-isolated"
               />
-            </div>
-          ) : (
-            <div className="text-center text-editor-text-muted max-w-md">
-              <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-br from-primary/10 to-accent/10 rounded-full flex items-center justify-center">
-                <span className="text-4xl">💻</span>
-              </div>
-              <h3 className="text-lg font-semibold mb-2">Start Coding</h3>
-              <p className="text-sm mb-4">Create a new file or write some code to see the live preview</p>
-              <div className="text-xs text-muted-foreground space-y-1">
-                <p>• HTML for structure</p>
-                <p>• CSS for styling</p> 
-                <p>• JavaScript for interactivity</p>
-              </div>
-            </div>
-          )
+            ) : (
+              <iframe
+                key={refreshKey}
+                srcDoc={buildDocument(htmlContent, cssContent, jsContent, inspectEnabled)}
+                className="w-full h-full border-0"
+                title="Live Preview"
+                sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin"
+                loading="lazy"
+                {...{ credentialless: "true" }}
+              />
+            )}
+          </div>
         ) : (
-          <div className="text-center text-editor-text-muted">
-            <EyeOff className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p>Preview hidden</p>
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-center select-none">
+            <div
+              className="w-14 h-14 rounded-xl flex items-center justify-center"
+              style={{ background: 'hsl(var(--surface0))' }}
+            >
+              <Monitor className="w-7 h-7 text-editor-text-muted" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-editor-text mb-1">No content yet</p>
+              <p className="text-xs text-editor-text-muted">
+                Write HTML, CSS, or JS — preview updates automatically
+              </p>
+            </div>
           </div>
         )}
       </div>

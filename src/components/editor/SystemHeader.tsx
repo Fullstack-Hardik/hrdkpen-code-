@@ -1,163 +1,141 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { SettingsModal } from './SettingsModal';
-import { TeamCodeSettings } from './TeamCodeSettings';
-import { 
-  Clock, 
-  Search,
-  ExternalLink,
+import {
+  Play,
   Download,
-  Globe,
-  Terminal as TerminalIcon,
-  FileDown,
-  Users
+  Code2,
+  ExternalLink,
+  AlignLeft,
+  Keyboard,
 } from 'lucide-react';
+import { LANGUAGE_LABELS } from '@/lib/languages';
+import type { FileNode } from '@/types';
 
 interface SystemHeaderProps {
-  onExport?: () => void;
-  onPublish?: () => void;
-  onToggleTerminal?: () => void;
-  onDownloadCurrent?: () => void;
+  activeFile?: FileNode | null;
+  onRun: () => void;
+  onFormat: () => void;
+  onExport: () => void;
+  onPublish: () => void;
+  onDownloadCurrent: () => void;
 }
 
-export const SystemHeader = ({ 
-  onExport, 
-  onPublish, 
-  onToggleTerminal,
-  onDownloadCurrent
+export const SystemHeader = ({
+  activeFile,
+  onRun,
+  onFormat,
+  onExport,
+  onPublish,
+  onDownloadCurrent,
 }: SystemHeaderProps) => {
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [showTeamModal, setShowTeamModal] = useState(false);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => {
-      clearInterval(timer);
-    };
-  }, []);
-
-  const openExternalLink = (url: string) => {
-    window.open(url, '_blank');
-  };
-
-  const handlePublish = () => {
-    window.open('https://getlivenow.lovable.app', '_blank');
-  };
+  const lang = activeFile?.language ?? '';
+  const langLabel = LANGUAGE_LABELS[lang] ?? '';
+  const canRun = ['javascript', 'typescript', 'python', 'c', 'cpp'].includes(lang);
 
   return (
-    <header className="editor-header border-b border-border px-4 py-2 flex items-center justify-between bg-gradient-to-r from-editor-sidebar to-editor-panel">
-      {/* Left Section - App Title */}
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-            <i className="fas fa-code text-white text-sm" />
-          </div>
-          <h1 className="text-xl font-bold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
-            HRDKPEN
-          </h1>
-        </div>
-        
-        <div className="hidden md:flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => openExternalLink('https://developer.mozilla.org')}
-            className="text-editor-text-muted hover:text-editor-text hover:bg-editor-panel/50"
-          >
-            <i className="fab fa-html5 mr-1" />
-            MDN Docs
-            <ExternalLink className="w-3 h-3 ml-1" />
-          </Button>
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={() => openExternalLink('https://excalidraw.com')}
-            className="text-editor-text-muted hover:text-editor-text hover:bg-editor-panel/50"
-          >
-            <i className="fas fa-draw-polygon mr-1" />
-            Excalidraw
-            <ExternalLink className="w-3 h-3 ml-1" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Center Section - Team Collaboration */}
+    <header
+      className="flex items-center justify-between px-3 flex-shrink-0 no-select bg-editor-panel z-10 relative"
+      style={{
+        height: 40,
+        borderBottom: '1px solid hsl(var(--surface1))',
+      }}
+    >
+      {/* Brand */}
       <div className="flex items-center gap-2">
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={() => setShowTeamModal(true)}
-          className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 border-blue-500/30 hover:from-blue-500/20 hover:to-purple-500/20 text-editor-text hover:border-blue-400/50 transition-all duration-200"
+        <div
+          className="flex items-center gap-1.5 rounded-md px-2 py-1"
+          style={{ background: 'hsl(var(--blue) / 0.15)' }}
         >
-          <Users className="w-4 h-4 mr-2" />
-          <span className="hidden sm:inline">Team</span>
+          <Code2 className="w-4 h-4" style={{ color: 'hsl(var(--blue))' }} />
+          <span
+            className="text-sm font-bold tracking-tight"
+            style={{ color: 'hsl(var(--text))' }}
+          >
+            HRDK<span style={{ color: 'hsl(var(--blue))' }}>Pen</span>
+          </span>
+        </div>
+      </div>
+
+      {/* Center actions */}
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost" size="sm"
+          onClick={onFormat}
+          className="h-7 px-2 gap-1.5 text-xs"
+          style={{ color: 'hsl(var(--overlay2))' }}
+          title="Format document (Alt+Shift+F)"
+        >
+          <AlignLeft className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Format</span>
         </Button>
+
+        <Button
+          variant="ghost" size="sm"
+          onClick={onDownloadCurrent}
+          className="h-7 px-2 gap-1.5 text-xs"
+          style={{ color: 'hsl(var(--overlay2))' }}
+          title="Download current file"
+          disabled={!activeFile}
+        >
+          <Download className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Download</span>
+        </Button>
+
+        <Button
+          variant="ghost" size="sm"
+          onClick={onExport}
+          className="h-7 px-2 gap-1.5 text-xs"
+          style={{ color: 'hsl(var(--overlay2))' }}
+          title="Export project as ZIP"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Export ZIP</span>
+        </Button>
+
+        <Button
+          variant="ghost" size="sm"
+          onClick={onPublish}
+          className="h-7 px-2 gap-1.5 text-xs text-lavender-400 hover:text-lavender-300"
+          title="Publish Project Instantly"
+        >
+          <Code2 className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline font-medium">Publish</span>
+        </Button>
+
+        {canRun && (
+          <Button
+            size="sm"
+            onClick={onRun}
+            className="h-7 px-3 gap-1.5 text-xs ml-1 font-medium"
+            style={{
+              background: 'hsl(var(--green) / 0.2)',
+              color: 'hsl(var(--green))',
+              border: '1px solid hsl(var(--green) / 0.4)',
+            }}
+            title="Run code (Ctrl+Enter)"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            Run
+            {langLabel && <span className="opacity-60 text-[10px]">{langLabel}</span>}
+          </Button>
+        )}
       </div>
 
-      {/* Right Section - Actions and Time */}
-      <div className="flex items-center gap-3">
-        <div className="hidden sm:flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={onDownloadCurrent}
-            className="text-editor-text-muted hover:text-editor-text hover:bg-editor-panel/50"
-            title="Download Current File"
-          >
-            <FileDown className="w-4 h-4" />
-          </Button>
-
-          
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={handlePublish}
-            className="text-editor-text-muted hover:text-editor-text hover:bg-editor-panel/50"
-            title="Publish to getlivenow.lovable.app"
-          >
-            <Globe className="w-4 h-4" />
-          </Button>
-
-          <Button 
-            variant="ghost" 
-            size="sm"
-            onClick={onToggleTerminal}
-            className="text-editor-text-muted hover:text-editor-text hover:bg-editor-panel/50"
-            title="Terminal"
-          >
-            <TerminalIcon className="w-4 h-4" />
-          </Button>
-          
-          <div className="flex items-center gap-2 px-2">
-            <Clock className="w-4 h-4 text-editor-text-muted" />
-            <span className="text-sm font-mono text-editor-text">
-              {currentTime.toLocaleTimeString()}
-            </span>
-          </div>
-        </div>
-        
-        <SettingsModal />
+      {/* Right */}
+      <div className="flex items-center gap-1">
+        <kbd
+          className="hidden md:flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px]"
+          style={{
+            background: 'hsl(var(--surface0))',
+            color: 'hsl(var(--overlay1))',
+            border: '1px solid hsl(var(--surface1))',
+          }}
+          title="Keyboard shortcuts"
+        >
+          <Keyboard className="w-3 h-3" />
+          Ctrl+Enter to run
+        </kbd>
       </div>
-      
-      {/* Team Modal */}
-      {showTeamModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowTeamModal(false)}>
-          <div className="bg-editor-panel border border-border rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <TeamCodeSettings />
-            <Button 
-              variant="outline" 
-              onClick={() => setShowTeamModal(false)}
-              className="w-full mt-6"
-            >
-              Close
-            </Button>
-          </div>
-        </div>
-      )}
     </header>
   );
 };

@@ -1,41 +1,44 @@
-import { FileText } from 'lucide-react';
-import { FaJava, FaPython } from 'react-icons/fa';
-import { SiC, SiCplusplus, SiTypescript, SiJavascript, SiHtml5, SiCss3, SiJson } from 'react-icons/si';
-
+/**
+ * Language icon helper — uses emoji/text icons (no external icon library dependency).
+ * Returns a small colored span element for each language extension.
+ */
 export const getFileLanguageIcon = (fileName: string, className = 'w-4 h-4') => {
   const ext = fileName.split('.').pop()?.toLowerCase();
-  
+
+  const base = `text-xs font-bold flex-shrink-0 flex items-center justify-center ${className}`;
+
   switch (ext) {
-    case 'java':
-      return <FaJava className={`${className} text-orange-500`} />;
-    case 'py':
-      return <FaPython className={`${className} text-yellow-400`} />;
-    case 'c':
-      return <SiC className={`${className} text-blue-400`} />;
-    case 'cpp':
-    case 'hpp':
-      return <SiCplusplus className={`${className} text-blue-500`} />;
-    case 'ts':
-    case 'tsx':
-      return <SiTypescript className={`${className} text-blue-600`} />;
+    case 'html':
+      return <span className={`${base} text-orange-400`} title="HTML">{'H'}</span>;
+    case 'css':
+      return <span className={`${base} text-blue-400`} title="CSS">{'C'}</span>;
     case 'js':
     case 'jsx':
-      return <SiJavascript className={`${className} text-yellow-500`} />;
-    case 'html':
-      return <SiHtml5 className={`${className} text-orange-500`} />;
-    case 'css':
-      return <SiCss3 className={`${className} text-blue-500`} />;
-    case 'json':
-      return <SiJson className={`${className} text-green-500`} />;
+      return <span className={`${base} text-yellow-400`} title="JavaScript">{'J'}</span>;
+    case 'ts':
+    case 'tsx':
+      return <span className={`${base} text-blue-500`} title="TypeScript">{'T'}</span>;
+    case 'py':
+      return <span className={`${base} text-green-400`} title="Python">{'P'}</span>;
+    case 'c':
+    case 'h':
+      return <span className={`${base} text-cyan-400`} title="C">{'C'}</span>;
+    case 'cpp':
+    case 'hpp':
+    case 'cc':
+      return <span className={`${base} text-blue-400`} title="C++">{'C+'}</span>;
     case 'md':
-      return <FileText className={`${className} text-gray-400`} />;
+      return <span className={`${base} text-gray-400`} title="Markdown">{'M'}</span>;
+    case 'json':
+      return <span className={`${base} text-yellow-600`} title="JSON">{'J'}</span>;
     case 'png':
     case 'jpg':
     case 'jpeg':
     case 'gif':
     case 'svg':
-      return <span className={`${className} text-purple-400`}>🖼</span>;
+    case 'webp':
+      return <span className={`${base} text-purple-400`} title="Image">{'I'}</span>;
     default:
-      return <FileText className={`${className} text-editor-text-muted`} />;
+      return <span className={`${base} text-editor-text-dim`} title={ext ?? 'file'}>{'f'}</span>;
   }
 };

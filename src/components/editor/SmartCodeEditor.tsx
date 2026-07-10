@@ -1,707 +1,979 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { Button } from '@/components/ui/button';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  ContextMenuSeparator,
+} from '@/components/ui/context-menu';
+import { X, Monitor, Bot, Search, Minus, Square, BookOpen, Plus, Image as ImageIcon } from 'lucide-react';
+
 import { SystemHeader } from './SystemHeader';
-import { FileExplorer, FileNode } from './FileExplorer';
+import { FileExplorer } from './FileExplorer';
 import { CodeEditor } from './CodeEditor';
 import { LivePreview } from './LivePreview';
-import { MultiTerminal, MultiTerminalHandle } from './MultiTerminal';
-import { YouTubePlayer } from './YouTubePlayer';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { ModernAIAssistant } from './ModernAIAssistant';
-import { FindInFiles } from './FindInFiles';
+import { Terminal, type TerminalHandle } from './Terminal';
+import { PublishModal } from '@/components/publish/PublishModal';
 import { StatusBar } from './StatusBar';
-import { TeamChatPanel } from './TeamChatPanel';
-import { 
-  SidebarOpen, 
-  SidebarClose,
-  FileText,
-  X,
-  Monitor,
-  ChevronUp,
-  Sparkles,
-  Youtube
-} from 'lucide-react';
-import { YouTubeSection } from './YouTubeSection';
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { ActivityBar, type ActivityBarView } from '@/components/layout/ActivityBar';
+import { AIAssistant } from '@/components/ai/AIAssistant';
+import { SmartPopup } from '@/components/ai/SmartPopup';
+import { SettingsPanel } from '@/components/settings/SettingsPanel';
+import { ProblemsPanel, type Problem } from '@/components/panels/ProblemsPanel';
+import { OutputPanel, type OutputLine, makeOutputLine } from '@/components/panels/OutputPanel';
+import { AssetLibrary } from '@/components/assets/AssetLibrary';
+import { CommandPalette } from '@/components/layout/CommandPalette';
+import { BootstrapScreen } from '@/components/layout/BootstrapScreen';
+import { useWorkspace } from '@/hooks/use-workspace';
+import { useSettings } from '@/hooks/use-settings';
+import { getLanguageFromFilename, PREVIEW_LANGUAGES, LANGUAGE_TEMPLATES } from '@/lib/languages';
 import { getFileLanguageIcon } from '@/utils/languageIcons';
+import { executeJavaScript, executePython, executeCompiled } from '@/lib/execution';
+import { getWebContainer } from '@/lib/webcontainer';
+import { downloadProject, publishProject } from '@/lib/publish';
+import { useToast } from '@/hooks/use-toast';
+import type { FileSystemTree } from '@webcontainer/api';
 
+import type { FileNode } from '@/types';
 
-// Default empty file structure
-const defaultFiles: FileNode[] = [];
+// ─────────────────── Types ───────────────────
+import { DocsViewer } from '@/components/docs/DocsViewer';
 
+export type BottomPanel = 'terminal' | 'output' | 'problems' | 'inspect';
+type RightPanel  = 'preview' | 'ai' | 'docs' | 'assets' | null;
+
+// ─────────────────── Starter workspace ───────────────────
+const STARTER_FILES: { name: string; content: string }[] = [
+  { name: 'index.html',
+    content: LANGUAGE_TEMPLATES.html },
+  { name: 'style.css',
+    content: LANGUAGE_TEMPLATES.css },
+  { name: 'script.js',
+    content: `// JavaScript\nconsole.log('Hello from HRDK Pen!');\n\ndocument.querySelector('h1').style.color = '#89b4fa';\n` },
+];
+
+// ─────────────────── Component ───────────────────
 export const SmartCodeEditor = () => {
-  const [files, setFiles] = useState<FileNode[]>(defaultFiles);
-  const [openTabs, setOpenTabs] = useState<FileNode[]>([]);
-  const [activeTab, setActiveTab] = useState<string>('');
-  const [sidebarVisible, setSidebarVisible] = useState(true);
-  const [bottomPanelVisible, setBottomPanelVisible] = useState(true);
-  const [rightPanelVisible, setRightPanelVisible] = useState(true);
-  const [terminalVisible, setTerminalVisible] = useState(false);
-  const [activeRightTab, setActiveRightTab] = useState('preview');
-  const [showYouTube, setShowYouTube] = useState(false);
-  const [youtubeUrl, setYoutubeUrl] = useState('');
-  const [showFind, setShowFind] = useState(false);
-  const [cursorPosition, setCursorPosition] = useState({ line: 1, column: 1 });
-  const [errorCount, setErrorCount] = useState(0);
-  const [errorLines, setErrorLines] = useState<number[]>([]);
-  const multiTerminalRef = useRef<MultiTerminalHandle>(null);
+  const workspace = useWorkspace();
+  const { settings, update: updateSetting, reset: resetSettings } = useSettings();
+  const { toast } = useToast();
 
-  // Auto-save functionality
-  useEffect(() => {
-    const saveInterval = setInterval(() => {
-      localStorage.setItem('smart-editor-files', JSON.stringify(files));
-      localStorage.setItem('smart-editor-tabs', JSON.stringify(openTabs));
-      localStorage.setItem('smart-editor-active-tab', activeTab);
-    }, 2000);
+  // Active view states
+  const [activityView, setActivityView]   = useState<ActivityBarView>('explorer');
+  const [openTabs, setOpenTabs]           = useState<FileNode[]>([]);
+  const [activeTabId, setActiveTabId]     = useState<string>('');
+  const [rightPanel, setRightPanel] = useState<RightPanel>(null);
+  const [hasBootstrapped, setHasBootstrapped] = useState(false);
+  const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
+  const [bottomTab, setBottomTab]         = useState<BottomPanel>('terminal');
+  const [searchQuery, setSearchQuery]     = useState('');
 
-    return () => clearInterval(saveInterval);
-  }, [files, openTabs, activeTab]);
+  // Editor diagnostics
+  const [problems, setProblems]   = useState<Problem[]>([]);
+  const [cursorPos, setCursorPos] = useState({ line: 1, column: 1 });
 
-  // Load saved files on mount
-  useEffect(() => {
-    const savedFiles = localStorage.getItem('smart-editor-files');
-    const savedTabs = localStorage.getItem('smart-editor-tabs');
-    const savedActiveTab = localStorage.getItem('smart-editor-active-tab');
+  // Output panel
+  const [outputLines, setOutputLines] = useState<OutputLine[]>([]);
 
-    if (savedFiles) {
-      try {
-        const parsed = JSON.parse(savedFiles);
-        if (parsed && parsed.length > 0) {
-          setFiles(parsed);
-        }
-      } catch (e) {
-        console.warn('Failed to load saved files');
+  // Selection
+  const [selection, setSelection] = useState<{ text: string; pos: { top: number; left: number; height: number } | null }>({ text: '', pos: null });
+
+  // Command Palette
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // ─── Terminal Pages State ───
+  const [terminals, setTerminals] = useState<{ id: string; name: string }[]>([{ id: 'term-1', name: 'bash' }]);
+  const [activeTerminalId, setActiveTerminalId] = useState('term-1');
+  const terminalRefs = useRef<Record<string, TerminalHandle | null>>({});
+
+  const handleAddTerminal = () => {
+    const id = `term-${Date.now()}`;
+    setTerminals(prev => [...prev, { id, name: 'bash' }]);
+    setActiveTerminalId(id);
+    setBottomPanelOpen(true);
+    setBottomTab('terminal');
+  };
+
+  const handleRemoveTerminal = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTerminals(prev => {
+      const updated = prev.filter(t => t.id !== id);
+      if (activeTerminalId === id && updated.length > 0) {
+        setActiveTerminalId(updated[updated.length - 1].id);
+      }
+      return updated;
+    });
+  };
+
+  const terminalRef = {
+    current: {
+      runCode: (lang: string, code: string) => {
+        terminalRefs.current[activeTerminalId]?.runCode(lang, code);
+      },
+      execute: (cmd: string) => {
+        terminalRefs.current[activeTerminalId]?.execute(cmd);
       }
     }
+  };
+  const editorRef   = useRef<{ format: () => void; goToLine: (line: number, col: number) => void } | null>(null);
 
-    if (savedTabs) {
-      try {
-        const tabs = JSON.parse(savedTabs);
-        if (tabs && tabs.length > 0) {
-          setOpenTabs(tabs);
-          if (savedActiveTab) {
-            setActiveTab(savedActiveTab);
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to load saved tabs');
-      }
-    }
+  const [serverUrl, setServerUrl] = useState<string | null>(null);
+
+  // ─── Listen to WebContainer server ready ───
+  useEffect(() => {
+    let cleanup = false;
+    getWebContainer().then(wc => {
+      if (cleanup) return;
+      wc.on('server-ready', (port, url) => {
+        console.log(`Server ready on port ${port} at ${url}`);
+        setServerUrl(url);
+      });
+    }).catch(err => console.error(err));
+    return () => { cleanup = true; };
   }, []);
 
-  const findFileById = (fileList: FileNode[], id: string): FileNode | null => {
-    for (const file of fileList) {
-      if (file.id === id) return file;
-      if (file.children) {
-        const found = findFileById(file.children, id);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
-
-  const updateFileContent = (fileId: string, content: string) => {
-    const updateFileInTree = (fileList: FileNode[]): FileNode[] => {
-      return fileList.map(file => {
-        if (file.id === fileId) {
-          return { ...file, content };
-        }
-        if (file.children) {
-          return { ...file, children: updateFileInTree(file.children) };
-        }
-        return file;
-      });
-    };
-
-    setFiles(updateFileInTree(files));
-    
-    setOpenTabs(tabs => 
-      tabs.map(tab => 
-        tab.id === fileId ? { ...tab, content } : tab
-      )
-    );
-  };
-
-  const handleFileSelect = (file: FileNode) => {
-    if (file.type === 'file') {
-      if (!openTabs.find(tab => tab.id === file.id)) {
-        setOpenTabs(prev => [...prev, file]);
-      }
-      setActiveTab(file.id);
-
-      if (file.language === 'html') {
-        const css = files.flatMap(f => f.type === 'folder' ? (f.children || []) : [f]).find(f => f.name === 'styles.css');
-        const js = files.flatMap(f => f.type === 'folder' ? (f.children || []) : [f]).find(f => f.name === 'script.js');
-        if (css && !openTabs.find(t => t.id === css.id)) setOpenTabs(prev => [...prev, css]);
-        if (js && !openTabs.find(t => t.id === js.id)) setOpenTabs(prev => [...prev, js]);
-      }
-    }
-  };
-
-  const handleTabClose = (fileId: string) => {
-    const newTabs = openTabs.filter(tab => tab.id !== fileId);
-    setOpenTabs(newTabs);
-    
-    if (activeTab === fileId) {
-      setActiveTab(newTabs.length > 0 ? newTabs[newTabs.length - 1].id : '');
-    }
-  };
-
-  // Check for duplicate names in the same level
-  const isDuplicateName = (name: string, parentId?: string): boolean => {
-    const siblings = parentId 
-      ? (findFileById(files, parentId)?.children || [])
-      : files;
-    return siblings.some(f => f.name.toLowerCase() === name.toLowerCase());
-  };
-
-  const handleFileCreate = (name: string, type: 'file' | 'folder', parentId?: string) => {
-    // Prevent duplicate names
-    if (isDuplicateName(name, parentId)) {
-      const ext = name.includes('.') ? '.' + name.split('.').pop() : '';
-      const baseName = name.replace(ext, '');
-      name = `${baseName}_1${ext}`;
-    }
-
-    const newNode: FileNode = {
-      id: `${type}-${Date.now()}`,
-      name,
-      type,
-      content: type === 'file' ? '' : undefined,
-      language: type === 'file' ? getLanguageFromExtension(name) : undefined,
-      children: type === 'folder' ? [] : undefined
-    };
-
-    setFiles(prev => [...prev, newNode]);
-  };
-
-  const handleFileDelete = (fileId: string) => {
-    const filterFiles = (fileList: FileNode[]): FileNode[] => {
-      return fileList.filter(file => {
-        if (file.id === fileId) return false;
-        if (file.children) {
-          file.children = filterFiles(file.children);
-        }
-        return true;
-      });
-    };
-
-    setFiles(filterFiles(files));
-    setOpenTabs(tabs => tabs.filter(tab => tab.id !== fileId));
-    
-    if (activeTab === fileId) {
-      const remainingTabs = openTabs.filter(tab => tab.id !== fileId);
-      setActiveTab(remainingTabs.length > 0 ? remainingTabs[0].id : '');
-    }
-  };
-
-  const handleFileRename = (fileId: string, newName: string) => {
-    const updateFileName = (fileList: FileNode[]): FileNode[] => {
-      return fileList.map(file => {
-        if (file.id === fileId) {
-          return { 
-            ...file, 
-            name: newName,
-            language: file.type === 'file' ? getLanguageFromExtension(newName) : undefined
-          };
-        }
-        if (file.children) {
-          return { ...file, children: updateFileName(file.children) };
-        }
-        return file;
-      });
-    };
-
-    setFiles(updateFileName(files));
-    setOpenTabs(tabs => 
-      tabs.map(tab => 
-        tab.id === fileId ? { ...tab, name: newName } : tab
-      )
-    );
-  };
-
-  const handleMoveNode = (dragId: string, targetFolderId: string | null) => {
-    const moveNodeInTree = (fileList: FileNode[], dragId: string, targetFolderId: string | null): FileNode[] => {
-      let draggedNode: FileNode | null = null;
-      
-      const removeNode = (files: FileNode[]): FileNode[] => {
-        return files.filter(file => {
-          if (file.id === dragId) {
-            draggedNode = file;
-            return false;
+  // ─── Sync Workspace to WebContainer ───
+  useEffect(() => {
+    const syncToWC = async () => {
+      try {
+        const wc = await getWebContainer();
+        const buildTree = (nodes: FileNode[]): FileSystemTree => {
+          const tree: FileSystemTree = {};
+          for (const n of nodes) {
+            if (n.type === 'file') {
+              tree[n.name] = { file: { contents: n.content ?? '' } };
+            } else if (n.type === 'folder') {
+              tree[n.name] = { directory: buildTree(n.children ?? []) };
+            }
           }
-          if (file.children) {
-            file.children = removeNode(file.children);
-          }
-          return true;
-        });
-      };
-      
-      const updatedFiles = removeNode([...fileList]);
-      
-      if (!draggedNode) return fileList;
-      
-      if (targetFolderId === null) {
-        return [...updatedFiles, draggedNode];
+          return tree;
+        };
+        await wc.mount(buildTree(workspace.files));
+      } catch (e) {
+        console.error('Failed to sync to WebContainer:', e);
       }
-      
-      const addToFolder = (files: FileNode[]): FileNode[] => {
-        return files.map(file => {
-          if (file.id === targetFolderId && file.type === 'folder') {
-            return {
-              ...file,
-              children: [...(file.children || []), draggedNode!]
-            };
-          }
-          if (file.children) {
-            return {
-              ...file,
-              children: addToFolder(file.children)
-            };
-          }
-          return file;
-        });
-      };
-      
-      return addToFolder(updatedFiles);
     };
-    
-    setFiles(prev => moveNodeInTree(prev, dragId, targetFolderId));
-  };
+    syncToWC();
+  }, [workspace.files]);
 
-  const getLanguageFromExtension = (filename: string): string => {
-    const ext = filename.split('.').pop()?.toLowerCase();
-    switch (ext) {
-      case 'html': return 'html';
-      case 'css': return 'css';
-      case 'js': return 'javascript';
-      case 'ts': return 'typescript';
-      case 'tsx': return 'typescript';
-      case 'jsx': return 'javascript';
-      case 'py': return 'python';
-      case 'java': return 'java';
-      case 'c': return 'c';
-      case 'cpp': return 'cpp';
-      case 'h': return 'c';
-      case 'hpp': return 'cpp';
-      case 'json': return 'json';
-      case 'md': return 'markdown';
-      case 'txt': return 'plaintext';
-      default: return 'plaintext';
-    }
-  };
+  // Removed STARTER_FILES since we use BootstrapScreen now.
 
-  const getPreviewContent = () => {
-    const htmlFile = openTabs.find(tab => tab.language === 'html') || 
-                    findFileById(files, 'index-html');
-    const cssFile = openTabs.find(tab => tab.language === 'css') || 
-                   findFileById(files, 'styles-css');
-    const jsFile = openTabs.find(tab => tab.language === 'javascript') || 
-                  findFileById(files, 'script-js');
 
-    return {
-      html: htmlFile?.content || '',
-      css: cssFile?.content || '',
-      js: jsFile?.content || ''
-    };
-  };
+  // ─── Tab management ───
+  const openTab = useCallback((file: FileNode) => {
+    if (file.type !== 'file') return;
+    const fresh = workspace.findFile(file.id) ?? file;
+    setOpenTabs(prev => prev.find(t => t.id === fresh.id) ? prev : [...prev, fresh]);
+    setActiveTabId(fresh.id);
+  }, [workspace]);
 
-  const activeFile = openTabs.find(tab => tab.id === activeTab);
-  const previewContent = getPreviewContent();
-
-  // Import folder handler
-  const handleImportFolder = (items: { path: string; content: string }[]) => {
-    setFiles((prev) => {
-      const root = [...prev];
-      const ensureFolder = (segments: string[], nodes: FileNode[]): FileNode[] => {
-        if (segments.length === 0) return nodes;
-        const [head, ...tail] = segments;
-        let folder = nodes.find((n) => n.type === 'folder' && n.name === head);
-        if (!folder) {
-          folder = { id: `folder-${Date.now()}-${head}`, name: head, type: 'folder', children: [], isOpen: true };
-          nodes.push(folder);
-        }
-        folder.children = ensureFolder(tail, folder.children || []);
-        return nodes;
-      };
-      const addFile = (path: string, content: string) => {
-        const parts = path.split('/').filter(Boolean);
-        const fileName = parts.pop() as string;
-        const folders = parts;
-        ensureFolder(folders, root);
-        let nodes: FileNode[] = root;
-        for (const f of folders) {
-          const next = nodes.find((n) => n.type === 'folder' && n.name === f) as FileNode;
-          nodes = next.children || (next.children = []);
-        }
-        nodes.push({
-          id: `file-${Date.now()}-${fileName}`,
-          name: fileName,
-          type: 'file',
-          content,
-          language: getLanguageFromExtension(fileName),
-        });
-      };
-      items.forEach((it) => addFile(it.path, it.content));
-      return root;
+  const closeTab = useCallback((id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setOpenTabs(prev => {
+      const next = prev.filter(t => t.id !== id);
+      if (activeTabId === id) setActiveTabId(next.length ? next[next.length - 1].id : '');
+      return next;
     });
+  }, [activeTabId]);
+
+  const handleContentChange = useCallback((content: string) => {
+    if (!activeTabId) return;
+    workspace.updateFileContent(activeTabId, content);
+    setOpenTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, content } : t));
+  }, [activeTabId, workspace]);
+
+  const handleFileRename = useCallback((id: string, name: string) => {
+    workspace.renameFile(id, name);
+    setOpenTabs(prev => prev.map(t =>
+      t.id === id ? { ...t, name, language: getLanguageFromFilename(name) } : t
+    ));
+  }, [workspace]);
+
+  const handleFileDelete = useCallback((id: string) => {
+    workspace.deleteFile(id);
+    closeTab(id);
+  }, [workspace, closeTab]);
+
+  // ─── Active file ───
+  const activeFile = openTabs.find(t => t.id === activeTabId) ?? null;
+
+  // Keep open tab content in sync with workspace (for imports/renames from elsewhere)
+  useEffect(() => {
+    setOpenTabs(prev => prev.map(t => {
+      const fresh = workspace.findFile(t.id);
+      return fresh ? { ...t, content: fresh.content } : t;
+    }));
+  }, [workspace.files]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── Live preview content ───
+  const previewContent = {
+    html: openTabs.find(t => t.language === 'html')?.content ?? '',
+    css:  openTabs.find(t => t.language === 'css')?.content ?? '',
+    js:   openTabs.find(t => t.language === 'javascript' || t.language === 'typescript')?.content ?? '',
   };
 
-  const createFileAtPath = (fullPath: string) => {
-    const parts = fullPath.split('/').filter(Boolean);
-    const fileName = parts.pop() || 'untitled.txt';
-    setFiles((prev) => {
-      const root = [...prev];
-      let nodes: FileNode[] = root;
-      for (const segment of parts) {
-        let folder = nodes.find((n) => n.type === 'folder' && n.name === segment);
-        if (!folder) {
-          folder = { id: `folder-${Date.now()}-${segment}`, name: segment, type: 'folder', children: [], isOpen: true } as FileNode;
-          nodes.push(folder);
+  // ─── Code execution ───
+  const addOutput = useCallback((type: OutputLine['type'], text: string) => {
+    setOutputLines(prev => [...prev, makeOutputLine(type, text)]);
+  }, []);
+
+  const runActiveFile = useCallback(async () => {
+    if (!activeFile?.content) return;
+    const lang = activeFile.language ?? '';
+
+    // Switch to output panel
+    setBottomPanelOpen(true);
+    setBottomTab('output');
+
+    addOutput('system', `▶ Running ${activeFile.name}...`);
+
+    try {
+      if (lang === 'javascript' || lang === 'typescript') {
+        const r = await executeJavaScript(activeFile.content);
+        r.sandboxResult.logs.forEach(l => addOutput(l.type as OutputLine['type'], l.args.join(' ')));
+        r.sandboxResult.alerts.forEach(a => addOutput('alert', `[${a.kind}] ${a.message}`));
+        r.sandboxResult.errors.forEach(e => addOutput('error', e));
+        if (!r.sandboxResult.logs.length && !r.sandboxResult.errors.length) {
+          addOutput('system', '(no output)');
         }
-        nodes = folder.children || (folder.children = []);
+      } else if (lang === 'python') {
+        addOutput('system', 'Loading Python environment...');
+        const r = await executePython(activeFile.content);
+        if (r.stdout) addOutput('log', r.stdout);
+        if (r.stderr) addOutput('error', r.stderr);
+        if (!r.stdout && !r.stderr) addOutput('system', '(no output)');
+      } else if (lang === 'c' || lang === 'cpp') {
+        addOutput('system', 'Compiling with GCC via Piston API...');
+        try {
+          const r = await executeCompiled(lang as 'c' | 'cpp', activeFile.content);
+          if (r.stdout) addOutput('log', r.stdout);
+          if (r.stderr) addOutput('error', r.stderr);
+          if (r.exitCode !== 0) addOutput('error', `Exit code: ${r.exitCode}`);
+          else if (!r.stdout && !r.stderr) addOutput('system', '(no output)');
+        } catch {
+          addOutput('error', 'Server unavailable. Start Express server: cd server && node index.js');
+        }
       }
-      nodes.push({
-        id: `file-${Date.now()}-${fileName}`,
-        name: fileName,
-        type: 'file',
-        content: '',
-        language: getLanguageFromExtension(fileName),
-      });
-      return root;
-    });
-  };
+    } catch (e: unknown) {
+      addOutput('error', String(e));
+    }
+  }, [activeFile, addOutput]);
 
+  // Ctrl+Enter global shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        runActiveFile();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+        e.preventDefault();
+        setBottomPanelOpen(v => !v);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [runActiveFile]);
+
+  // Command Palette Actions
+  const handlePaletteAction = useCallback((action: string, payload?: any) => {
+    if (action === 'openFile') {
+      openTab(payload);
+    } else if (action === 'run') {
+      runActiveFile();
+    } else if (action === 'view') {
+      if (payload === 'settings') {
+        setActivityView('settings');
+      } else {
+        setRightPanel(payload);
+      }
+    }
+  }, [openTab, runActiveFile]);
+
+  // ─── Problems ───
+  const handleEditorErrors = useCallback((errs: { line: number; message: string }[]) => {
+    if (!activeFile) return;
+    setProblems(prev => {
+      const other = prev.filter(p => p.fileId !== activeFile.id);
+      const newProbs: Problem[] = errs.map(e => ({
+        fileId: activeFile.id,
+        fileName: activeFile.name,
+        line: e.line,
+        column: 1,
+        severity: 'error' as const,
+        message: e.message,
+      }));
+      return [...other, ...newProbs];
+    });
+  }, [activeFile]);
+
+  const jumpToLine = useCallback((fileId: string, line: number, col: number) => {
+    const tab = openTabs.find(t => t.id === fileId);
+    if (tab) {
+      setActiveTabId(fileId);
+      setTimeout(() => editorRef.current?.goToLine(line, col), 100);
+    }
+  }, [openTabs]);
+
+  // ─── Format ───
+  const handleFormat = () => editorRef.current?.format();
+
+  // ─── Export ZIP ───
   const exportProject = async () => {
     try {
-      const JSZip = (await import('jszip')).default;
-      const zip = new JSZip();
-      
-      const addFilesToZip = (fileList: FileNode[], path = '') => {
-        fileList.forEach(file => {
-          const fullPath = path ? `${path}/${file.name}` : file.name;
-          if (file.type === 'file') {
-            zip.file(fullPath, file.content || '');
-          } else if (file.type === 'folder' && file.children) {
-            addFilesToZip(file.children, fullPath);
-          }
-        });
-      };
-      
-      addFilesToZip(files);
-      
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'hrdkpen-project.zip';
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Export failed:', error);
+      await downloadProject(workspace.files, 'hrdk-pen-project');
+      toast({ title: 'Export complete!' });
+    } catch (e: any) {
+      toast({ title: 'Export failed', description: e.message, variant: 'destructive' });
     }
   };
 
-  const publishProject = () => {
-    window.open('https://getlivenow.lovable.app', '_blank');
+  // ─── Publish ───
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+
+  const handlePublishClick = () => {
+    setIsPublishModalOpen(true);
   };
 
-  const handleFindResultClick = (fileId: string, line: number) => {
-    const file = findFileById(files, fileId);
-    if (file) {
-      handleFileSelect(file);
-      setCursorPosition({ line, column: 1 });
-      setShowFind(false);
+  const handlePublishSubmit = async (details: { name: string; description: string; category: string }) => {
+    try {
+      const url = await publishProject(workspace.files, details);
+      toast({ 
+        title: 'Project Published 🎉', 
+        description: `Live URL: ${url}`,
+      });
+      addOutput('info', `Project "${details.name}" published successfully to: ${url}`);
+    } catch (e: any) {
+      toast({ title: 'Publish failed', description: e.message, variant: 'destructive' });
     }
   };
 
-  const handleDownloadCurrent = () => {
-    const file = openTabs.find(tab => tab.id === activeTab);
-    if (!file) return;
-    const type = file.language === 'html' ? 'text/html' : file.language === 'css' ? 'text/css' : 'text/plain';
-    const blob = new Blob([file.content || ''], { type });
-    const url = URL.createObjectURL(blob);
+  // ─── Download current file ───
+  const downloadCurrent = () => {
+    if (!activeFile?.content) return;
+    const blob = new Blob([activeFile.content], { type: 'text/plain' });
     const a = document.createElement('a');
-    a.href = url;
-    a.download = file.name;
+    a.href = URL.createObjectURL(blob);
+    a.download = activeFile.name;
     a.click();
-    URL.revokeObjectURL(url);
   };
 
-  // Handle errors from code editor
-  const handleEditorErrors = (errors: { line: number; message: string }[]) => {
-    setErrorCount(errors.length);
-    setErrorLines(errors.map(e => e.line));
-  };
-
-  return (
-    <div className="h-screen flex flex-col overflow-hidden bg-editor-bg">
-      {/* Header */}
-      <SystemHeader 
-        onExport={exportProject} 
-        onPublish={publishProject} 
-        onToggleTerminal={() => setTerminalVisible(v => !v)} 
-        onDownloadCurrent={handleDownloadCurrent}
-      />
-      
-      {/* Main Editor Layout */}
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <ResizablePanelGroup direction="horizontal" className="flex-1">
-          {/* Sidebar */}
-          {sidebarVisible && (
-            <>
-              <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
-                <div className="h-full border-r border-border">
-                  <FileExplorer
-                    files={files}
-                    onFileSelect={handleFileSelect}
-                    onFileCreate={handleFileCreate}
-                    onFileDelete={handleFileDelete}
-                    onFileRename={handleFileRename}
-                    selectedFileId={activeTab}
-                    onImportFolder={handleImportFolder}
-                    onMove={(dragId, targetFolderId) => handleMoveNode(dragId, targetFolderId)}
-                  />
-                </div>
-              </ResizablePanel>
-              <ResizableHandle withHandle />
-            </>
-          )}
-          
-          {/* Main Content Area */}
-          <ResizablePanel defaultSize={sidebarVisible ? 50 : 70}>
-            <div className="flex flex-col h-full">
-              {/* File Tabs */}
-              <div className="flex items-center bg-editor-sidebar border-b border-border px-2 py-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSidebarVisible(!sidebarVisible)}
-                  className="mr-2 h-7 w-7 p-0"
-                >
-                  {sidebarVisible ? <SidebarClose className="w-3 h-3" /> : <SidebarOpen className="w-3 h-3" />}
-                </Button>
-                
-                <div className="flex flex-1 overflow-x-auto">
-                  {openTabs.map(tab => (
-                    <div
-                      key={tab.id}
-                      className={`
-                        flex items-center gap-2 px-3 py-1.5 border-r border-border cursor-pointer
-                        transition-editor min-w-0 max-w-48 group
-                        ${activeTab === tab.id ? 'bg-editor-active-tab text-editor-text' : 'text-editor-text-muted hover:text-editor-text hover:bg-editor-border'}
-                      `}
-                      onClick={() => setActiveTab(tab.id)}
-                    >
-                      {getFileLanguageIcon(tab.name, 'w-3.5 h-3.5 flex-shrink-0')}
-                      <span className="text-xs truncate">{tab.name}</span>
-                      {['javascript', 'typescript', 'python', 'java', 'c', 'cpp'].includes(tab.language || '') && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!terminalVisible) setTerminalVisible(true);
-                            setTimeout(() => {
-                              multiTerminalRef.current?.runCode(tab.language || '', tab.content || '');
-                            }, 100);
-                          }}
-                          className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 bg-green-500/20 hover:bg-green-500/40 text-green-400 rounded-sm"
-                          title="Run code"
-                        >
-                          ▶
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTabClose(tab.id);
-                        }}
-                        className="h-4 w-4 p-0 opacity-60 hover:opacity-100"
-                      >
-                        <X className="w-2 h-2" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Code Editor */}
-              <div className="flex-1 overflow-hidden">
-                {activeFile ? (
-                  <CodeEditor
-                    value={activeFile.content || ''}
-                    onChange={(content) => updateFileContent(activeFile.id, content)}
-                    language={activeFile.language || 'plaintext'}
-                    fileName={activeFile.name}
-                    onRun={(code, lang) => {
-                      if (!terminalVisible) setTerminalVisible(true);
-                      setTimeout(() => {
-                        multiTerminalRef.current?.runCode(lang, code);
-                      }, 100);
-                    }}
-                    onErrors={handleEditorErrors}
-                  />
-                ) : (
-                  <div className="h-full flex items-center justify-center text-editor-text-muted">
-                    <div className="text-center">
-                      <FileText className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                      <p>Select a file to start editing</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </ResizablePanel>
-          
-          {/* Right Panel - Preview / AI / YouTube — each tab fills the panel exclusively */}
-          {rightPanelVisible && (
-            <>
-              <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
-                <div className="h-full flex flex-col overflow-hidden">
-                  {/* Tab bar */}
-                  <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-editor-sidebar flex-shrink-0">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => setActiveRightTab('preview')}
-                        className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-md transition-all ${
-                          activeRightTab === 'preview' 
-                            ? 'bg-editor-accent/20 text-editor-accent font-medium' 
-                            : 'text-editor-text-muted hover:text-editor-text hover:bg-editor-active-tab'
-                        }`}
-                      >
-                        <Monitor className="w-3 h-3" />
-                        Preview
-                      </button>
-                      <button
-                        onClick={() => setActiveRightTab('ai')}
-                        className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-md transition-all ${
-                          activeRightTab === 'ai' 
-                            ? 'bg-purple-500/20 text-purple-400 font-medium' 
-                            : 'text-editor-text-muted hover:text-editor-text hover:bg-editor-active-tab'
-                        }`}
-                      >
-                        <Sparkles className="w-3 h-3" />
-                        AI
-                      </button>
-                      <button
-                        onClick={() => setActiveRightTab('youtube')}
-                        className={`flex items-center gap-1 text-xs px-3 py-1.5 rounded-md transition-all ${
-                          activeRightTab === 'youtube' 
-                            ? 'bg-red-500/20 text-red-400 font-medium' 
-                            : 'text-editor-text-muted hover:text-editor-text hover:bg-editor-active-tab'
-                        }`}
-                      >
-                        <Youtube className="w-3 h-3" />
-                        YouTube
-                      </button>
-                    </div>
-                    
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setRightPanelVisible(false)}
-                      className="h-6 px-2"
-                      title="Close Panel"
-                    >
-                      <X className="w-3 h-3" />
-                    </Button>
-                  </div>
-
-                  {/* Tab content — only ONE visible at a time, takes full remaining height */}
-                  <div className="flex-1 overflow-hidden relative">
-                    <div className={`absolute inset-0 ${activeRightTab === 'preview' ? 'block' : 'hidden'}`}>
-                      <LivePreview
-                        htmlContent={previewContent.html} 
-                        cssContent={previewContent.css} 
-                        jsContent={previewContent.js}
-                        activeFileName={openTabs.find(tab => tab.id === activeTab)?.name}
-                      />
-                    </div>
-                    <div className={`absolute inset-0 ${activeRightTab === 'ai' ? 'flex flex-col' : 'hidden'}`}>
-                      <ModernAIAssistant
-                        onCodeInsert={(code) => {
-                          if (activeTab && openTabs.find(tab => tab.id === activeTab)) {
-                            const file = openTabs.find(tab => tab.id === activeTab);
-                            if (file) {
-                              updateFileContent(file.id, code);
-                            }
-                          }
-                        }}
-                        attachedFile={activeFile ? { name: activeFile.name, content: activeFile.content || '' } : null}
-                      />
-                    </div>
-                    <div className={`absolute inset-0 ${activeRightTab === 'youtube' ? 'block' : 'hidden'}`}>
-                      <YouTubeSection 
-                        onPlayVideo={(url) => {
-                          setYoutubeUrl(url);
-                          setShowYouTube(true);
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </ResizablePanel>
-            </>
-          )}
-        </ResizablePanelGroup>
-        
-        {/* YouTube Player Overlay */}
-        {showYouTube && (
-          <YouTubePlayer url={youtubeUrl} onClose={() => setShowYouTube(false)} />
-        )}
-        
-        {/* Bottom Terminal */}
-        <div className="border-t border-border bg-editor-bg flex flex-col transition-all duration-200" style={{ height: terminalVisible ? '300px' : '0px', overflow: 'hidden' }}>
-          <div className="flex-1 min-h-0">
-            <MultiTerminal 
-              ref={multiTerminalRef} 
-              getFileSystem={() => files} 
-              onCreateFile={(fullPath) => createFileAtPath(fullPath)}
-              onClose={() => setTerminalVisible(false)}
+  // ─── Sidebar content ───
+  const renderSidebarContent = () => {
+    if (activityView === 'settings') {
+      return (
+        <SettingsPanel
+          settings={settings}
+          onUpdate={updateSetting}
+          onReset={resetSettings}
+          onClose={() => setActivityView('explorer')}
+        />
+      );
+    }
+    if (activityView === 'ai') {
+      return (
+        <AIAssistant
+          activeFile={activeFile ? { name: activeFile.name, content: activeFile.content ?? '' } : null}
+          onCodeInsert={code => { if (activeFile) handleContentChange(code); }}
+        />
+      );
+    }
+    if (activityView === 'search') {
+      return (
+        <div className="flex flex-col h-full">
+          <div className="px-3 py-2 border-b border-editor-border">
+            <p className="text-xs font-semibold text-editor-text-muted uppercase tracking-wider mb-2">Search</p>
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search in files..."
+              className="w-full h-7 px-2 text-xs bg-editor-bg border border-editor-border rounded text-editor-text outline-none focus:border-editor-accent"
             />
           </div>
+          {searchQuery && (
+            <div className="flex-1 overflow-y-auto p-2 space-y-1 font-code text-xs">
+              {(() => {
+                const results: { file: FileNode; lines: { n: number; text: string }[] }[] = [];
+                const search = (nodes: FileNode[]) => {
+                  for (const n of nodes) {
+                    if (n.type === 'file' && n.content) {
+                      const matches = n.content.split('\n')
+                        .map((text, i) => ({ n: i + 1, text }))
+                        .filter(l => l.text.toLowerCase().includes(searchQuery.toLowerCase()));
+                      if (matches.length) results.push({ file: n, lines: matches });
+                    }
+                    if (n.children) search(n.children);
+                  }
+                };
+                search(workspace.files);
+                if (!results.length) return <p className="text-editor-text-dim p-2">No results</p>;
+                return results.map(r => (
+                  <div key={r.file.id}>
+                    <div
+                      className="flex items-center gap-1.5 px-1 py-0.5 cursor-pointer hover:bg-editor-active-tab rounded text-editor-text font-medium"
+                      onClick={() => openTab(r.file)}
+                    >
+                      {getFileLanguageIcon(r.file.name, 'w-3 h-3')}
+                      <span>{r.file.name}</span>
+                      <span className="text-editor-text-dim ml-auto">{r.lines.length}</span>
+                    </div>
+                    {r.lines.slice(0, 5).map(l => (
+                      <div
+                        key={l.n}
+                        onClick={() => { openTab(r.file); jumpToLine(r.file.id, l.n, 1); }}
+                        className="pl-5 py-0.5 text-editor-text-muted hover:text-editor-text cursor-pointer hover:bg-editor-active-tab rounded truncate"
+                        title={l.text}
+                      >
+                        <span className="text-editor-text-dim mr-1.5">{l.n}</span>
+                        {l.text.trim()}
+                      </div>
+                    ))}
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
         </div>
-        
-        {/* Status Bar */}
-        <StatusBar
-          activeFile={activeFile}
-          cursorPosition={cursorPosition}
-          totalLines={activeFile?.content?.split('\n').length || 0}
-          errors={errorCount}
-          errorLines={errorLines}
-          warnings={0}
-          onHostClick={() => window.open('https://getlivenow.lovable.app', '_blank')}
-        />
+      );
+    }
+    if (activityView === 'docs') {
+      return <DocsViewer />;
+    }
+    if (activityView === 'assets') {
+      return <AssetLibrary />;
+    }
+    // Default: explorer
+    return (
+      <FileExplorer
+        files={workspace.files}
+        selectedFileId={activeTabId}
+        onFileSelect={openTab}
+        onFileCreate={workspace.createFile}
+        onFileDelete={handleFileDelete}
+        onFileRename={handleFileRename}
+        onImportFolder={workspace.importFolder}
+        onSync={async () => {
+          const { readWebContainerFS } = await import('@/lib/webcontainer');
+          const updatedNodes = await readWebContainerFS(workspace.files);
+          workspace.setWorkspaceFiles(updatedNodes);
+        }}
+        onLoadTemplate={async (type) => {
+          const folderName = await workspace.loadTemplate(type);
+          
+          if (type === 'react' || type === 'express' || type === 'node') {
+            // Give the state a moment to settle, then sync files and start dev
+            setTimeout(() => {
+              setBottomPanelOpen(true);
+              setBottomTab('terminal');
+              const npmInstall = 'npm install --no-audit --no-fund';
+              const cmd = type === 'react' ? `cd ${folderName} && ${npmInstall} && npm run dev` 
+                        : type === 'express' ? `cd ${folderName} && ${npmInstall} && npm run dev`
+                        : `cd ${folderName} && ${npmInstall} && npm start`;
+              const termId = terminals.length > 0 ? terminals[0].id : activeTerminalId;
+              const term = terminalRefs.current[termId];
+              if (term) term.execute(cmd);
+            }, 1000);
+          }
+        }}
+      />
+    );
+  };
+
+  const errorCount = problems.filter(p => p.severity === 'error').length;
+  const warningCount = problems.filter(p => p.severity === 'warning').length;
+
+  useEffect(() => {
+    let unmounted = false;
+    getWebContainer().then(wc => {
+      if (unmounted) return;
+      wc.on('server-ready', (port, url) => {
+        setServerUrl(url);
+        // Force the right panel to show preview
+        setRightPanel('preview');
+        setRightPanelOpen(true);
+      });
+    });
+    return () => { unmounted = true; };
+  }, []);
+
+  useEffect(() => {
+    if (workspace.isReady && workspace.files.length > 0) {
+      setHasBootstrapped(true);
+    }
+  }, [workspace.isReady, workspace.files.length]);
+
+  if (!workspace.isReady) {
+    return (
+      <div className="flex flex-col items-center justify-center w-screen h-screen bg-[#1e1e2e] text-[#cdd6f4]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
+        <p>Loading Workspace...</p>
       </div>
-      
-      {/* Toggle Buttons */}
-      {!rightPanelVisible && (
-        <div className="fixed top-16 right-3 z-50">
-          <Button
-            onClick={() => setRightPanelVisible(true)}
-            className="rounded-full h-9 w-9 p-0 glow-accent"
-            title="Show preview/AI panel"
+    );
+  }
+
+  if (!hasBootstrapped && workspace.files.length === 0) {
+    return (
+      <BootstrapScreen 
+        onLoadTemplate={async (type) => {
+          setHasBootstrapped(true);
+          const folderName = await workspace.loadTemplate(type);
+          
+          if (type === 'react' || type === 'express' || type === 'node') {
+            setTimeout(() => {
+              setBottomPanelOpen(true);
+              setBottomTab('terminal');
+              const npmInstall = 'npm install --no-audit --no-fund';
+              const cmd = type === 'react' ? `cd ${folderName} && ${npmInstall} && npm run dev` 
+                        : type === 'express' ? `cd ${folderName} && ${npmInstall} && npm run dev`
+                        : `cd ${folderName} && ${npmInstall} && npm start`;
+              const termId = terminals.length > 0 ? terminals[0].id : activeTerminalId;
+              const term = terminalRefs.current[termId];
+              if (term) term.execute(cmd);
+            }, 1000);
+          }
+        }} 
+        onImportFolder={() => {
+          setHasBootstrapped(true);
+          // Trigger the standard import flow
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.webkitdirectory = true;
+          input.onchange = async (e) => {
+            const files = Array.from((e.target as HTMLInputElement).files || []);
+            if (!files.length) return;
+            const items = await Promise.all(
+              files.map(async f => ({ path: f.webkitRelativePath, content: await f.text() }))
+            );
+            workspace.importFolder(items);
+          };
+          input.click();
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="ide-root no-select">
+      {/* Header */}
+      <SystemHeader
+        activeFile={activeFile}
+        onRun={runActiveFile}
+        onFormat={handleFormat}
+        onExport={exportProject}
+        onPublish={handlePublishClick}
+        onDownloadCurrent={downloadCurrent}
+      />
+
+      <PublishModal
+        isOpen={isPublishModalOpen}
+        onClose={() => setIsPublishModalOpen(false)}
+        onPublish={handlePublishSubmit}
+      />
+
+      <CommandPalette 
+        open={paletteOpen} 
+        setOpen={setPaletteOpen} 
+        onAction={handlePaletteAction} 
+      />
+
+      {/* Body */}
+      <div className="flex flex-1 overflow-hidden min-h-0">
+        {/* Activity bar */}
+        <ActivityBar
+          active={activityView}
+          onChange={setActivityView}
+          terminalOpen={bottomPanelOpen}
+          onToggleTerminal={() => setBottomPanelOpen(v => !v)}
+          errorCount={errorCount}
+        />
+
+        {/* Main layout */}
+        <div className="flex flex-col flex-1 overflow-hidden min-h-0">
+          <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
+            {/* Sidebar */}
+            <ResizablePanel defaultSize={20} minSize={14} maxSize={40}>
+              <div className="flex flex-col h-full border-r border-editor-border bg-editor-sidebar">
+                {/* Sidebar title */}
+                <div
+                  className="px-4 py-2 flex-shrink-0 border-b border-editor-border"
+                  style={{ height: 36 }}
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-editor-text-muted">
+                    {activityView === 'explorer' ? 'Explorer'
+                    : activityView === 'search'   ? 'Search'
+                    : activityView === 'ai'        ? 'AI Assistant'
+                    : activityView === 'docs'      ? 'Documentation'
+                    : 'Settings'}
+                  </p>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  {renderSidebarContent()}
+                </div>
+              </div>
+            </ResizablePanel>
+
+            <ResizableHandle withHandle />
+
+            {/* Editor + Right panel */}
+            <ResizablePanel defaultSize={rightPanel ? 55 : 80}>
+              <div className="flex flex-col h-full">
+                {/* Tab bar */}
+                <div
+                  className="flex items-center overflow-x-auto flex-shrink-0 no-select"
+                  style={{
+                    height: 36,
+                    background: 'hsl(var(--mantle))',
+                    borderBottom: '1px solid hsl(var(--surface1))',
+                  }}
+                >
+                  {openTabs.map(tab => (
+                    <ContextMenu key={tab.id}>
+                      <ContextMenuTrigger>
+                        <div
+                          className={`editor-tab ${activeTabId === tab.id ? 'active' : ''}`}
+                          onClick={() => setActiveTabId(tab.id)}
+                          title={tab.name}
+                        >
+                          {getFileLanguageIcon(tab.name, 'w-3 h-3 flex-shrink-0')}
+                          <span className="truncate text-xs">{tab.name}</span>
+                          <button
+                            className="tab-close"
+                            onClick={e => closeTab(tab.id, e)}
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent className="w-40 bg-editor-panel border-editor-border text-editor-text">
+                        <ContextMenuItem onClick={() => closeTab(tab.id)}>
+                          Close
+                        </ContextMenuItem>
+                        <ContextMenuItem 
+                          onClick={() => {
+                            setOpenTabs([tab]);
+                            setActiveTabId(tab.id);
+                          }}
+                          disabled={openTabs.length <= 1}
+                        >
+                          Close Others
+                        </ContextMenuItem>
+                        <ContextMenuSeparator className="bg-editor-border" />
+                        <ContextMenuItem 
+                          onClick={() => {
+                            setOpenTabs([]);
+                            setActiveTabId(null);
+                          }}
+                        >
+                          Close All
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
+                  ))}
+                </div>
+
+                {/* Editor */}
+                <div className="flex-1 min-h-0 relative">
+                  {activeFile ? (
+                    <>
+                      <CodeEditor
+                        key={activeFile.id}
+                        value={activeFile.content ?? ''}
+                        onChange={handleContentChange}
+                        language={activeFile.language ?? 'plaintext'}
+                        fileName={activeFile.name}
+                        settings={settings}
+                        onRun={runActiveFile}
+                        onCursorChange={(line, column) => setCursorPos({ line, column })}
+                        onSelectionChange={(text, pos) => setSelection({ text, pos })}
+                        onErrors={handleEditorErrors}
+                        onEditorReady={api => { editorRef.current = api; }}
+                      />
+                      <SmartPopup 
+                        position={selection.pos}
+                        text={selection.text}
+                        onAction={(action) => {
+                          setRightPanel('ai');
+                          const message = `Please ${action} this code:\n\`\`\`\n${selection.text}\n\`\`\``;
+                          window.dispatchEvent(new CustomEvent('ai-chat', { detail: message }));
+                        }}
+                      />
+                    </>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center gap-4 text-center select-none">
+                      <div
+                        className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                        style={{ background: 'hsl(var(--surface0))' }}
+                      >
+                        <span className="text-4xl">🖋️</span>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-editor-text mb-1">No file open</p>
+                        <p className="text-xs text-editor-text-muted">
+                          Select a file from the Explorer or create a new one
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </ResizablePanel>
+
+            {/* Right panel */}
+            {rightPanel && (
+              <>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize={25} minSize={20} maxSize={50}>
+                  <div className="flex flex-col h-full border-l border-editor-border">
+                    {/* Right panel tabs */}
+                    <div
+                      className="flex items-center justify-between flex-shrink-0"
+                      style={{
+                        height: 36,
+                        background: 'hsl(var(--mantle))',
+                        borderBottom: '1px solid hsl(var(--surface1))',
+                      }}
+                    >
+                      <div className="flex items-center">
+                        <button
+                          className={`panel-tab ${rightPanel === 'preview' ? 'active' : ''}`}
+                          onClick={() => setRightPanel('preview')}
+                        >
+                          <Monitor className="w-3.5 h-3.5" />
+                          Preview
+                        </button>
+                        <button
+                          className={`panel-tab ${rightPanel === 'ai' ? 'active' : ''}`}
+                          onClick={() => setRightPanel('ai')}
+                        >
+                          <Bot className="w-3.5 h-3.5" />
+                          AI
+                        </button>
+                        <button
+                          className={`panel-tab ${rightPanel === 'docs' ? 'active' : ''}`}
+                          onClick={() => setRightPanel('docs')}
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          Docs
+                        </button>
+                        <button
+                          className={`panel-tab ${rightPanel === 'assets' ? 'active' : ''}`}
+                          onClick={() => setRightPanel('assets')}
+                        >
+                          <ImageIcon className="w-3.5 h-3.5" />
+                          Assets
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => setRightPanel(null)}
+                        className="px-2 text-editor-text-dim hover:text-editor-text transition-fast"
+                        title="Close panel"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="flex-1 min-h-0">
+                      {rightPanel === 'preview' ? (
+                        <LivePreview
+                          htmlContent={previewContent.html}
+                          cssContent={previewContent.css}
+                          jsContent={previewContent.js}
+                          activeFileName={activeFile?.name}
+                          serverUrl={serverUrl}
+                          onConsoleMessage={(type, args) => {
+                            addOutput(type as OutputLine['type'], args.join(' '));
+                          }}
+                        />
+                      ) : rightPanel === 'ai' ? (
+                        <AIAssistant
+                          activeFile={activeFile ? { name: activeFile.name, content: activeFile.content ?? '' } : null}
+                          onCodeInsert={code => { if (activeFile) handleContentChange(code); }}
+                        />
+                      ) : rightPanel === 'assets' ? (
+                        <AssetLibrary />
+                      ) : null}
+                    </div>
+                  </div>
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
+
+          {/* Bottom panels (Terminal / Output / Problems) */}
+          <div
+            className="flex-shrink-0 border-t border-editor-border overflow-hidden transition-all duration-200"
+            style={{ height: bottomPanelOpen ? 260 : 0 }}
           >
-            <Monitor className="w-4 h-4" />
-          </Button>
+            {/* Bottom panel tabs */}
+            <div
+              className="flex items-center justify-between flex-shrink-0"
+              style={{
+                height: 32,
+                background: 'hsl(var(--mantle))',
+                borderBottom: '1px solid hsl(var(--surface1))',
+              }}
+            >
+              <div className="flex items-center">
+                {(['terminal', 'output', 'problems', 'inspect'] as BottomPanel[]).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setBottomTab(tab)}
+                    className={`panel-tab ${bottomTab === tab ? 'active' : ''}`}
+                  >
+                    {tab === 'problems' && errorCount > 0 && (
+                      <span
+                        className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-bold mr-1"
+                        style={{ background: 'hsl(var(--red))', color: 'white' }}
+                      >
+                        {errorCount > 9 ? '9+' : errorCount}
+                      </span>
+                    )}
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setBottomPanelOpen(false)}
+                className="px-2 text-editor-text-dim hover:text-editor-text transition-fast"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Panel content */}
+            <div className="h-[228px] flex flex-col">
+              {bottomTab === 'terminal' && (
+                <>
+                  <div className="flex items-center gap-1 bg-editor-panel border-b border-editor-border px-2 pt-1 overflow-x-auto min-h-[28px]">
+                    {terminals.map(term => (
+                      <div
+                        key={term.id}
+                        onClick={() => setActiveTerminalId(term.id)}
+                        className={`flex items-center gap-2 px-3 py-1 text-xs cursor-pointer rounded-t-md transition-colors ${
+                          activeTerminalId === term.id
+                            ? 'bg-[#1e1e2e] text-editor-text border border-editor-border border-b-0'
+                            : 'text-editor-text-muted hover:bg-editor-active-tab'
+                        }`}
+                      >
+                        <span>{term.name}</span>
+                        {terminals.length > 1 && (
+                          <button
+                            onClick={(e) => handleRemoveTerminal(term.id, e)}
+                            className="p-0.5 hover:bg-editor-border rounded text-editor-text-muted hover:text-editor-error"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={handleAddTerminal}
+                      className="p-1 text-editor-text-muted hover:text-editor-text ml-1"
+                      title="New Terminal"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="flex-1 relative bg-[#1e1e2e]">
+                    {terminals.map(term => (
+                      <div
+                        key={term.id}
+                        className="absolute inset-0"
+                        style={{ display: activeTerminalId === term.id ? 'block' : 'none' }}
+                      >
+                        <Terminal
+                          ref={el => terminalRefs.current[term.id] = el}
+                          getFileSystem={() => workspace.files}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {bottomTab === 'output' && (
+                <OutputPanel
+                  lines={outputLines}
+                  onClear={() => setOutputLines([])}
+                />
+              )}
+              {bottomTab === 'problems' && (
+                <ProblemsPanel
+                  problems={problems}
+                  onJumpTo={(fileId, line, col) => {
+                    jumpToLine(fileId, line, col);
+                    setBottomPanelOpen(false);
+                  }}
+                />
+              )}
+              {bottomTab === 'inspect' && (
+                <div className="flex-1 flex flex-col items-center justify-center text-center p-6 bg-editor-bg">
+                  <div className="w-12 h-12 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center mb-3">
+                    <Bug className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-editor-text font-medium mb-2">Web Inspector</h3>
+                  <p className="text-editor-text-muted text-sm max-w-md mb-4">
+                    Browser security prevents embedding full Developer Tools directly inside this panel for WebContainers. 
+                  </p>
+                  <button
+                    onClick={() => {
+                      if (serverUrl) {
+                        window.open(serverUrl, '_blank');
+                      } else {
+                        alert('Please use the "Open in new tab" button in the Preview panel to inspect static projects.');
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm transition-colors"
+                  >
+                    Open Project in New Tab (Press F12 to Inspect)
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
-      )}
-      {!terminalVisible && (
-        <div className="fixed bottom-4 left-4 z-50">
-          <Button
-            onClick={() => setTerminalVisible(true)}
-            className="group relative rounded-full h-12 w-12 p-0 bg-gradient-to-r from-purple-600 via-blue-600 to-teal-600 hover:from-purple-700 hover:via-blue-700 hover:to-teal-700 shadow-xl border-2 border-white/30 backdrop-blur-sm transition-all duration-300 hover:scale-105"
-            title="Open Terminal"
-          >
-            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-600 via-blue-600 to-teal-600 opacity-0 group-hover:opacity-20 animate-pulse"></div>
-            <ChevronUp className="w-6 h-6 text-white relative z-10" />
-          </Button>
-        </div>
-      )}
+
+        {/* Floating right panel buttons (when right panel hidden) */}
+        {!rightPanel && (
+          <div className="absolute right-3 top-12 flex flex-col gap-1 z-40">
+            <button
+              onClick={() => setRightPanel('preview')}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-fast"
+              style={{
+                background: 'hsl(var(--surface0))',
+                border: '1px solid hsl(var(--surface1))',
+                color: 'hsl(var(--overlay2))',
+              }}
+              title="Show preview"
+            >
+              <Monitor className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setRightPanel('ai')}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-fast"
+              style={{
+                background: 'hsl(var(--lavender) / 0.2)',
+                border: '1px solid hsl(var(--lavender) / 0.4)',
+                color: 'hsl(var(--lavender))',
+              }}
+              title="Show AI Assistant"
+            >
+              <Bot className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Status bar */}
+      <StatusBar
+        activeFile={activeFile}
+        cursorPosition={cursorPos}
+        totalLines={activeFile?.content?.split('\n').length ?? 0}
+        errors={errorCount}
+        warnings={warningCount}
+        onShowProblems={() => { setBottomPanelOpen(true); setBottomTab('problems'); }}
+      />
     </div>
   );
 };
