@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { get, set } from 'idb-keyval';
 import type { FileNode } from '@/types';
 import { getLanguageFromFilename } from '@/lib/languages';
@@ -125,9 +125,13 @@ export function useWorkspace() {
     return () => { unmounted = true; };
   }, []);
 
+  const saveTimeoutRef = useRef<any>(null);
   const saveWorkspace = useCallback((updated: FileNode[], pid = activeProjectId) => {
     if (!pid) return;
-    set(WORKSPACE_PREFIX + pid, updated).catch(err => console.error('Failed to save to IndexedDB', err));
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      set(WORKSPACE_PREFIX + pid, updated).catch(err => console.error('Failed to save to IndexedDB', err));
+    }, 1000);
   }, [activeProjectId]);
 
   const switchProject = useCallback(async (id: string) => {

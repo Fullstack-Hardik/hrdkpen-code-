@@ -146,12 +146,12 @@ export const LivePreview = ({
     if (serverUrl) setCurrentUrl(serverUrl);
   }, [serverUrl]);
 
-  // Debounced auto-refresh
+  // Debounced auto-refresh (only for static mode, WebContainer handles its own HMR)
   useEffect(() => {
-    if (!autoRefresh) return;
-    const id = setTimeout(() => setRefreshKey(k => k + 1), 600);
+    if (!autoRefresh || currentUrl) return;
+    const id = setTimeout(() => setRefreshKey(k => k + 1), 1000);
     return () => clearTimeout(id);
-  }, [htmlContent, cssContent, jsContent, autoRefresh]);
+  }, [htmlContent, cssContent, jsContent, autoRefresh, currentUrl]);
 
   // Listen to postMessages from the preview iframe
   useEffect(() => {

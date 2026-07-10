@@ -187,24 +187,33 @@ export const SmartCodeEditor = () => {
     });
   }, [activeTabId]);
 
+  const contentChangeTimeoutRef = useRef<any>(null);
+
   const handleContentChange = useCallback((content: string) => {
     if (!activeTabId) return;
-    workspace.updateFileContent(activeTabId, content);
+    
+    // Fast local state update
     setOpenTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, content } : t));
     
-    // Dynamically write to WebContainer FS to trigger HMR efficiently
-    const filePath = workspace.findFilePath(activeTabId);
-    if (filePath) {
-      getWebContainer().then(wc => {
-        let finalContent = content;
-        if (inspectEnabled && (filePath === 'index.html' || filePath.endsWith('.html'))) {
-          finalContent = content.replace(/<head([^>]*)>/i, `<head$1><script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init({defaults:{displaySize:100,transparency:1,theme:'Dark'}}); eruda.show(); eruda._entryBtn.hide();</script>`);
-        }
-        wc.fs.writeFile(`/${filePath}`, finalContent).catch(err => {
-          console.error('Failed to write file to WebContainer:', err);
+    // Debounce the heavy global workspace tree update and WebContainer FS write
+    if (contentChangeTimeoutRef.current) clearTimeout(contentChangeTimeoutRef.current);
+    contentChangeTimeoutRef.current = setTimeout(() => {
+      workspace.updateFileContent(activeTabId, content);
+      
+      // Dynamically write to WebContainer FS to trigger HMR efficiently
+      const filePath = workspace.findFilePath(activeTabId);
+      if (filePath) {
+        getWebContainer().then(wc => {
+          let finalContent = content;
+          if (inspectEnabled && (filePath === 'index.html' || filePath.endsWith('.html'))) {
+            finalContent = content.replace(/<head([^>]*)>/i, `<head$1><script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init({defaults:{displaySize:100,transparency:1,theme:'Dark'}}); eruda.show(); eruda._entryBtn.hide();</script>`);
+          }
+          wc.fs.writeFile(`/${filePath}`, finalContent).catch(err => {
+            console.error('Failed to write file to WebContainer:', err);
+          });
         });
-      });
-    }
+      }
+    }, 400);
   }, [activeTabId, workspace, inspectEnabled]);
 
   const handleFileRename = useCallback((id: string, name: string) => {
