@@ -115,6 +115,12 @@ export const LivePreview = ({
   const [refreshKey, setRefreshKey] = useState(0);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [inspectEnabled, setInspectEnabled] = useState(false);
+  const [currentUrl, setCurrentUrl] = useState(serverUrl || '');
+
+  // Sync currentUrl when serverUrl prop changes
+  useEffect(() => {
+    if (serverUrl) setCurrentUrl(serverUrl);
+  }, [serverUrl]);
 
   // Debounced auto-refresh
   useEffect(() => {
@@ -134,10 +140,14 @@ export const LivePreview = ({
   }, [onConsoleMessage]);
 
   const openInNewTab = useCallback(() => {
+    if (currentUrl) {
+      window.open(currentUrl, '_blank');
+      return;
+    }
     const doc = buildDocument(htmlContent, cssContent, jsContent);
     const win = window.open('', '_blank');
     if (win) { win.document.write(doc); win.document.close(); }
-  }, [htmlContent, cssContent, jsContent]);
+  }, [htmlContent, cssContent, jsContent, currentUrl]);
 
   const download = useCallback(() => {
     const doc = buildDocument(htmlContent, cssContent, jsContent);
@@ -166,9 +176,21 @@ export const LivePreview = ({
           <Monitor className="w-3.5 h-3.5 text-editor-text-muted flex-shrink-0" />
           <span className="text-xs text-editor-text-muted font-medium flex-shrink-0">Preview</span>
           <div className="flex items-center bg-editor-panel border border-editor-border rounded px-2 h-6 flex-1 max-w-[300px] min-w-[100px]">
-            <span className="text-[10px] text-editor-text-dim truncate select-all">
-              {serverUrl || 'https://hrdkpen.vercel.app/'}
-            </span>
+            <form 
+              className="flex-1 min-w-0"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setRefreshKey(k => k + 1); // Refresh iframe to load the new URL
+              }}
+            >
+              <input
+                type="text"
+                value={currentUrl}
+                onChange={e => setCurrentUrl(e.target.value)}
+                placeholder="https://hrdkpen.vercel.app/"
+                className="w-full bg-transparent border-none outline-none text-[10px] text-editor-text-dim truncate"
+              />
+            </form>
           </div>
         </div>
 
@@ -257,13 +279,14 @@ export const LivePreview = ({
               transition: 'width 0.2s ease, height 0.2s ease',
             }}
           >
-            {serverUrl ? (
+            {currentUrl ? (
               <iframe
                 key={refreshKey}
-                src={serverUrl}
+                src={currentUrl}
                 className="w-full h-full border-0"
                 title="Live Server Preview"
                 allow="cross-origin-isolated"
+                sandbox="allow-scripts allow-forms allow-popups allow-modals allow-same-origin allow-downloads"
               />
             ) : (
               <iframe
