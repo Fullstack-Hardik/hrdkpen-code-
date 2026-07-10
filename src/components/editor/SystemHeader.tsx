@@ -8,8 +8,10 @@ import {
   AlignLeft,
   Keyboard,
   TerminalSquare,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-react';
-import { LANGUAGE_LABELS } from '@/lib/languages';
+import { LANGUAGE_LABELS, getLanguageFromFilename } from '@/lib/languages';
 import type { FileNode } from '@/types';
 
 interface SystemHeaderProps {
@@ -21,6 +23,8 @@ interface SystemHeaderProps {
   onDownloadCurrent: () => void;
   terminalOpen?: boolean;
   onToggleTerminal?: () => void;
+  rightPanelOpen?: boolean;
+  onToggleRightPanel?: () => void;
 }
 
 export const SystemHeader = ({
@@ -32,8 +36,10 @@ export const SystemHeader = ({
   onDownloadCurrent,
   terminalOpen,
   onToggleTerminal,
+  rightPanelOpen,
+  onToggleRightPanel,
 }: SystemHeaderProps) => {
-  const lang = activeFile?.language ?? '';
+  const lang = activeFile?.language || (activeFile ? getLanguageFromFilename(activeFile.name) : '');
   const langLabel = LANGUAGE_LABELS[lang] ?? '';
   const canRun = ['javascript', 'typescript', 'python', 'c', 'cpp'].includes(lang);
 
@@ -153,6 +159,18 @@ export const SystemHeader = ({
           <Keyboard className="w-3 h-3" />
           Ctrl+Enter to run
         </kbd>
+        
+        {onToggleRightPanel && (
+          <Button
+            variant="ghost" size="sm"
+            onClick={onToggleRightPanel}
+            className={`h-7 w-7 p-0 ml-2 transition-fast ${rightPanelOpen ? 'bg-black/20' : ''}`}
+            style={{ color: rightPanelOpen ? 'hsl(var(--text))' : 'hsl(var(--overlay2))' }}
+            title="Toggle Right Panel"
+          >
+            {rightPanelOpen ? <PanelRightClose className="w-4 h-4" /> : <PanelRightOpen className="w-4 h-4" />}
+          </Button>
+        )}
       </div>
     </header>
   );

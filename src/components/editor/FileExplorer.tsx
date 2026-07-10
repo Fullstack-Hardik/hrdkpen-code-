@@ -6,6 +6,7 @@ import {
   FolderOpen,
   Plus,
   FolderPlus,
+  FilePlus,
   MoreHorizontal,
   Trash2,
   Edit3,
@@ -290,7 +291,16 @@ export const FileExplorer = ({
                 onClick={() => setCreatingFile(true)}
                 title="New File"
               >
-                <Plus className="w-3.5 h-3.5" />
+                <FilePlus className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-6 h-6 hover:bg-editor-active-tab text-editor-text-muted hover:text-white"
+                onClick={() => onFileCreate('new-folder', 'folder')}
+                title="New Folder"
+              >
+                <FolderPlus className="w-3.5 h-3.5" />
               </Button>
               {onSync && (
                 <Button
@@ -308,8 +318,8 @@ export const FileExplorer = ({
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="w-6 h-6 hover:bg-editor-active-tab text-editor-text-muted hover:text-white"
-                    title="More Options"
+                    className="w-6 h-6 hover:bg-editor-active-tab text-yellow-500 hover:text-yellow-400"
+                    title="Create from Template"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </Button>

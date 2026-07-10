@@ -168,14 +168,16 @@ export const LivePreview = ({
   }, [onConsoleMessage, onNavigate]);
 
   const openInNewTab = useCallback(() => {
-    if (currentUrl) {
+    // If it's a real external WebContainer URL, open it directly
+    if (currentUrl && !currentUrl.startsWith(window.location.origin)) {
       window.open(currentUrl, '_blank');
       return;
     }
-    const doc = buildDocument(htmlContent, cssContent, jsContent);
-    const win = window.open('', '_blank');
-    if (win) { win.document.write(doc); win.document.close(); }
-  }, [htmlContent, cssContent, jsContent, currentUrl]);
+    // Otherwise fallback to Blob URL which works for static files
+    const doc = buildDocument(htmlContent, cssContent, jsContent, isInspect);
+    const blob = new Blob([doc], { type: 'text/html' });
+    window.open(URL.createObjectURL(blob), '_blank');
+  }, [htmlContent, cssContent, jsContent, currentUrl, isInspect]);
 
   const download = useCallback(() => {
     const doc = buildDocument(htmlContent, cssContent, jsContent);
@@ -186,7 +188,7 @@ export const LivePreview = ({
     a.click(); URL.revokeObjectURL(url);
   }, [htmlContent, cssContent, jsContent, activeFileName]);
 
-  const hasContent = !!(htmlContent.trim() || cssContent.trim() || jsContent.trim());
+  const hasContent = !!(htmlContent.trim() || cssContent.trim() || jsContent.trim() || isInspect || currentUrl);
   const dim = DEVICE_SIZES[device];
 
   return (

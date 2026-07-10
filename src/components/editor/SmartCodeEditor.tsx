@@ -159,33 +159,6 @@ export const SmartCodeEditor = () => {
         };
         await wc.mount(buildTree(workspace.files));
         
-        // Auto-start a static server if no package.json is present
-        const hasPackageJson = workspace.files.some(f => f.name === 'package.json');
-        if (!hasPackageJson && staticServerRunning.current !== workspace.activeProjectId) {
-          staticServerRunning.current = workspace.activeProjectId;
-          const serveCode = `
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const mime = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' };
-http.createServer((req, res) => {
-  let filePath = path.join(process.cwd(), req.url === '/' ? 'index.html' : req.url);
-  let ext = path.extname(filePath);
-  if (!ext && fs.existsSync(filePath + '.html')) { filePath += '.html'; ext = '.html'; }
-  fs.readFile(filePath, (err, content) => {
-    if (err) {
-      if (err.code === 'ENOENT') { res.writeHead(404); res.end('404 Not Found'); }
-      else { res.writeHead(500); res.end('500 Internal Error'); }
-    } else {
-      res.writeHead(200, { 'Content-Type': mime[ext] || 'text/plain' });
-      res.end(content);
-    }
-  });
-}).listen(3000, () => console.log('HRDK static server running'));
-`;
-          await wc.fs.writeFile('/.hrdkpen_serve.js', serveCode);
-          await wc.spawn('node', ['.hrdkpen_serve.js']);
-        }
       } catch (e) {
         console.error('Failed to sync to WebContainer:', e);
       }
@@ -628,6 +601,8 @@ http.createServer((req, res) => {
         onDownloadCurrent={downloadCurrent}
         terminalOpen={bottomPanelOpen}
         onToggleTerminal={() => setBottomPanelOpen(v => !v)}
+        rightPanelOpen={rightPanel !== null}
+        onToggleRightPanel={() => setRightPanel(prev => prev ? null : 'preview')}
       />
 
       <PublishModal
@@ -778,7 +753,7 @@ http.createServer((req, res) => {
                           key={activeFile.id}
                           value={activeFile.content ?? ''}
                           onChange={handleContentChange}
-                          language={activeFile.language ?? 'plaintext'}
+                          language={activeFile.language || getLanguageFromFilename(activeFile.name)}
                           fileName={activeFile.name}
                           settings={settings}
                           onRun={runActiveFile}
@@ -835,11 +810,25 @@ http.createServer((req, res) => {
                     >
                       <div className="flex items-center">
                         <button
-                          className="panel-tab active"
+                          className={`panel-tab ${rightPanel === 'preview' ? 'active' : ''}`}
                           onClick={() => setRightPanel('preview')}
                         >
                           <Monitor className="w-3.5 h-3.5" />
                           Preview
+                        </button>
+                        <button
+                          className={`panel-tab ${rightPanel === 'docs' ? 'active' : ''}`}
+                          onClick={() => setRightPanel('docs')}
+                        >
+                          <BookOpen className="w-3.5 h-3.5" />
+                          Docs
+                        </button>
+                        <button
+                          className={`panel-tab ${rightPanel === 'assets' ? 'active' : ''}`}
+                          onClick={() => setRightPanel('assets')}
+                        >
+                          <ImageIcon className="w-3.5 h-3.5" />
+                          Assets
                         </button>
                       </div>
                       <button
@@ -889,6 +878,8 @@ http.createServer((req, res) => {
                         />
                       ) : rightPanel === 'assets' ? (
                         <AssetLibrary />
+                      ) : rightPanel === 'docs' ? (
+                        <DocsViewer />
                       ) : null}
                     </div>
                   </div>
@@ -1074,37 +1065,7 @@ http.createServer((req, res) => {
     )}
   </ResizablePanelGroup>
 </div>
-
-        {/* Floating right panel buttons (when right panel hidden) */}
-        {!rightPanel && (
-          <div className="absolute right-3 top-12 flex flex-col gap-1 z-40">
-            <button
-              onClick={() => setRightPanel('preview')}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-fast"
-              style={{
-                background: 'hsl(var(--surface0))',
-                border: '1px solid hsl(var(--surface1))',
-                color: 'hsl(var(--overlay2))',
-              }}
-              title="Show preview"
-            >
-              <Monitor className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setRightPanel('assets')}
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-fast"
-              style={{
-                background: 'hsl(var(--lavender) / 0.2)',
-                border: '1px solid hsl(var(--lavender) / 0.4)',
-                color: 'hsl(var(--lavender))',
-              }}
-            >
-              <Bot className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-      </div>
-
+</div>
       {/* Status bar */}
       <StatusBar
         activeFile={activeFile}
