@@ -1,73 +1,49 @@
-# Welcome to your Lovable project
+# HRDK Pen IDE
 
-## Project info
+A powerful, high-performance, in-browser Code Editor and IDE platform built with React, Vite, and WebContainers. This project allows users to write, preview, and execute code dynamically completely within the browser.
 
-**URL**: https://lovable.dev/projects/d3ec045c-2d8b-431d-808a-1de54f7ef9ef
+## Key Features
+- **In-Browser Execution**: Powered by `@webcontainer/api` to run native Node.js environments directly in the browser.
+- **Smart Code Editor**: Highly optimized Monaco Editor integration with minimal latency and syntax highlighting.
+- **Dynamic Previews**: Instant live previews for static web files (HTML/CSS/JS) and live Node.js/Vite server ports.
+- **Intelligent Package Restoration**: Automatically parses `package.json` and runs `npm install` gracefully when restoring saved projects to prevent "module not found" errors.
+- **File System Sync**: Persistent local workspace utilizing IndexedDB to preserve file nodes across sessions.
+- **Vercel Optimized**: Configured with strict bundle splitting (`manualChunks`) and forced `.npmrc` peer-dependency resolutions to guarantee smooth production deployments on edge networks.
 
-## How can I edit this code?
+## Technology Stack
+- **Framework:** React 18
+- **Build Tool:** Vite
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS & shadcn/ui
+- **Core Engine:** WebContainers, Monaco Editor, xterm.js
 
-There are several ways of editing your application.
+## Quick Start
 
-**Use Lovable**
+### 1. Clone the repository
+```bash
+git clone https://github.com/Fullstack-Hardik/hrdkpen-code-.git
+cd hrdkpen-code-
+```
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/d3ec045c-2d8b-431d-808a-1de54f7ef9ef) and start prompting.
+### 2. Install dependencies
+```bash
+npm install
+```
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### 3. Start the development server
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Production Build
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+To test the production build locally:
+```bash
+npm run build
+npm run preview
+```
 
-**Use GitHub Codespaces**
+## Deployment
+This project is configured for **Vercel**. Simply import the repository into your Vercel dashboard and click Deploy. 
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/d3ec045c-2d8b-431d-808a-1de54f7ef9ef) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+*(Note: The project leverages `.npmrc` to strictly enforce `legacy-peer-deps` so that all Radix UI and React type dependencies compile without conflicts during the `npm ci` stage).*
