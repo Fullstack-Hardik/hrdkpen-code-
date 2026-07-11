@@ -192,8 +192,27 @@ export const SmartCodeEditor = () => {
           // Start watching FS changes
           await fsSyncService.startWatching();
 
+          // Restored project boot logic
+          const pkgFile = workspace.files.find(f => f.name === 'package.json');
+          if (pkgFile && pkgFile.content) {
+            try {
+              const pkg = JSON.parse(pkgFile.content);
+              // Run npm install to restore node_modules, then start the dev server
+              const p = await processManager.spawn(workspace.activeProjectId, 'npm', ['install', '--no-audit', '--no-fund', '--legacy-peer-deps']);
+              p.exit.then(() => {
+                if (pkg.scripts && pkg.scripts.dev) {
+                  processManager.spawn(workspace.activeProjectId, 'npm', ['run', 'dev']).catch(console.error);
+                } else if (pkg.scripts && pkg.scripts.start) {
+                  processManager.spawn(workspace.activeProjectId, 'npm', ['start']).catch(console.error);
+                }
+              });
+            } catch (e) {
+              console.error('Failed to parse package.json on boot', e);
+            }
+          }
+
           // Start a lightweight static server if this is a static project (no package.json)
-          const hasPackageJson = workspace.files.some(f => f.name === 'package.json');
+          const hasPackageJson = !!pkgFile;
           if (!hasPackageJson && staticServerRunning.current !== workspace.activeProjectId) {
             staticServerRunning.current = workspace.activeProjectId;
             
