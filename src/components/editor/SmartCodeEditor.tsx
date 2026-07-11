@@ -143,6 +143,7 @@ export const SmartCodeEditor = () => {
   const editorRef   = useRef<{ format: () => void; goToLine: (line: number, col: number) => void } | null>(null);
 
   const [serverUrl, setServerUrl] = useState<string | null>(null);
+  const [serverReadyCount, setServerReadyCount] = useState(0);
   const [inspectEnabled, setInspectEnabled] = useState(false);
   const staticServerRunning = useRef<string | null>(null);
 
@@ -154,6 +155,7 @@ export const SmartCodeEditor = () => {
       wc.on('server-ready', (port, url) => {
         console.log(`Server ready on port ${port} at ${url}`);
         setServerUrl(url);
+        setServerReadyCount(c => c + 1);
       });
     }).catch(err => console.error(err));
     return () => { cleanup = true; };
@@ -706,16 +708,7 @@ http.createServer((req, res) => {
   const errorCount = problems.filter(p => p.severity === 'error').length;
   const warningCount = problems.filter(p => p.severity === 'warning').length;
 
-  useEffect(() => {
-    let unmounted = false;
-    getWebContainer().then(wc => {
-      if (unmounted) return;
-      wc.on('server-ready', (port, url) => {
-        setServerUrl(url);
-      });
-    });
-    return () => { unmounted = true; };
-  }, []);
+  // Removed duplicate server-ready listener
 
   // Removed hasBootstrapped useEffect to fix Bootstrap screen locking
 
@@ -1053,6 +1046,7 @@ http.createServer((req, res) => {
                           jsContent={previewContent.js}
                           activeFileName={activeFile?.name}
                           serverUrl={serverUrl}
+                          serverReadyCount={serverReadyCount}
                           inspectEnabled={inspectEnabled}
                           onInspectChange={setInspectEnabled}
                           onNavigate={(url) => {

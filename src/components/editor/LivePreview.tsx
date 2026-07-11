@@ -14,6 +14,7 @@ interface LivePreviewProps {
   onConsoleMessage?: (type: 'log' | 'warn' | 'error' | 'info', args: string[]) => void;
   onNavigate?: (url: string) => void;
   serverUrl?: string | null;
+  serverReadyCount?: number;
   inspectEnabled?: boolean;
   onInspectChange?: (enabled: boolean) => void;
 }
@@ -126,6 +127,7 @@ export const LivePreview = ({
   onConsoleMessage,
   onNavigate,
   serverUrl,
+  serverReadyCount,
   inspectEnabled,
   onInspectChange,
 }: LivePreviewProps) => {
@@ -153,9 +155,18 @@ export const LivePreview = ({
   // Debounced auto-refresh (only for static mode, WebContainer handles its own HMR)
   useEffect(() => {
     if (!autoRefresh || currentUrl) return;
-    const id = setTimeout(() => setRefreshKey(k => k + 1), 1000);
-    return () => clearTimeout(id);
+    const t = setTimeout(() => {
+      setRefreshKey(k => k + 1);
+    }, 1000);
+    return () => clearTimeout(t);
   }, [htmlContent, cssContent, jsContent, autoRefresh, currentUrl]);
+
+  // Refresh automatically when the server explicitly emits server-ready
+  useEffect(() => {
+    if (serverReadyCount && serverReadyCount > 0) {
+      setRefreshKey(k => k + 1);
+    }
+  }, [serverReadyCount]);
 
   // Listen to postMessages from the preview iframe
   useEffect(() => {
