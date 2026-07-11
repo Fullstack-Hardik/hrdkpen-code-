@@ -139,10 +139,6 @@ export const LivePreview = ({
 
   const isInspect = inspectEnabled ?? internalInspect;
   const toggleInspect = () => {
-    if (currentUrl) {
-      alert('Eruda Inspect only works automatically for static HTML files. For Node/Express apps, manually add `<script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init()</script>` to your HTML.');
-      return;
-    }
     if (onInspectChange) onInspectChange(!isInspect);
     else setInternalInspect(!isInspect);
   };
