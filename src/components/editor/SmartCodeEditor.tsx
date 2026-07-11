@@ -1027,7 +1027,7 @@ http.createServer((req, res) => {
                           onClick={() => setRightPanel('ai')}
                         >
                           <Bot className="w-3.5 h-3.5" />
-                          Nova AI
+                          AI
                         </button>
                         <button
                           className={`panel-tab ${rightPanel === 'docs' ? 'active' : ''}`}

@@ -138,7 +138,7 @@ export const AIAssistant = forwardRef<AIAssistantRef, {}>((props, ref) => {
       localStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
     } catch (err) {
       console.error(err);
-      setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: '**API Key Required:** To use Nova AI in this standalone React app, please click the Settings (gear) icon in the top right and enter a free Gemini API key.' }] }]);
+      setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: '**API Key Required:** To use the AI in this standalone React app, please click the Settings (gear) icon in the top right and enter a free Gemini API key.' }] }]);
     } finally {
       setIsGenerating(false);
       textareaRef.current?.focus();
@@ -175,7 +175,7 @@ export const AIAssistant = forwardRef<AIAssistantRef, {}>((props, ref) => {
             <Bot size={18} />
           </div>
           <div>
-            <h1 className="font-semibold text-sm flex items-center gap-2">Nova AI</h1>
+            <h1 className="font-semibold text-sm flex items-center gap-2">AI</h1>
             <p className="text-[10px] text-editor-text-muted flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
               Ready to assist
