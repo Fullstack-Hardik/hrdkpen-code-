@@ -236,7 +236,7 @@ export const CodeEditor = ({
         editor.focus();
       },
     });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);  
 
   // Sync theme when settings change
   useEffect(() => {

@@ -32,7 +32,7 @@ import { useSettings } from '@/hooks/use-settings';
 import { getLanguageFromFilename, PREVIEW_LANGUAGES, LANGUAGE_TEMPLATES } from '@/lib/languages';
 import { getFileLanguageIcon } from '@/utils/languageIcons';
 import { executeJavaScript, executePython, executeCompiled } from '@/lib/execution';
-import { getWebContainer } from '@/lib/webcontainer';
+import { getWebContainer, readWebContainerFS } from '@/lib/webcontainer';
 import { downloadProject, publishProject } from '@/lib/publish';
 import { useToast } from '@/hooks/use-toast';
 import type { FileSystemTree } from '@webcontainer/api';
@@ -262,7 +262,7 @@ export const SmartCodeEditor = () => {
       const fresh = workspace.findFile(t.id);
       return fresh ? { ...t, content: fresh.content } : null;
     }).filter(Boolean) as FileNode[]);
-  }, [workspace.files]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [workspace.files]);  
 
   // Auto-sync WebContainer structure back to Explorer when terminal creates files
   const lastFSHashRef = useRef<string>('');
@@ -284,7 +284,6 @@ export const SmartCodeEditor = () => {
         };
         const currentHash = await getHash('/');
         if (lastFSHashRef.current && currentHash !== lastFSHashRef.current) {
-           const { readWebContainerFS } = await import('@/lib/webcontainer');
            const wcNodes = await readWebContainerFS(workspace.files);
            workspace.setWorkspaceFiles(wcNodes);
         }
@@ -555,7 +554,6 @@ export const SmartCodeEditor = () => {
         onFileRename={handleFileRename}
         onImportFolder={workspace.importFolder}
         onSync={async () => {
-          const { readWebContainerFS } = await import('@/lib/webcontainer');
           const updatedNodes = await readWebContainerFS(workspace.files);
           workspace.setWorkspaceFiles(updatedNodes);
         }}
