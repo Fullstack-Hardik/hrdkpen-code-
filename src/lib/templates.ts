@@ -69,7 +69,8 @@ document.querySelector('h1').addEventListener('click', () => {
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node --watch index.js",
+    "dev": "node --watch index.js"
   },
   "dependencies": {}
 }`),
@@ -88,8 +89,8 @@ console.log('Arch:', os.arch());
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "node --watch index.js",
+    "dev": "node --watch index.js"
   },
   "dependencies": {
     "express": "^4.18.2"
