@@ -138,34 +138,58 @@ export const SmartCodeEditor = () => {
   }, []);
 
   // ─── Sync Workspace to WebContainer ───
+  const lastMountedProjectRef = useRef<string | null>(null);
+  
   useEffect(() => {
     const syncToWC = async () => {
+      if (!workspace.isReady || !workspace.activeProjectId) return;
+      
       try {
         const wc = await getWebContainer();
-        const buildTree = (nodes: FileNode[]): FileSystemTree => {
-          const tree: FileSystemTree = {};
-          for (const n of nodes) {
-            if (n.type === 'file') {
-              let contents = n.content ?? '';
-              if (inspectEnabled && (n.name === 'index.html' || n.name.endsWith('.html'))) {
-                contents = contents.replace(/<head([^>]*)>/i, `<head$1><script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init();</script>`);
-              }
-              tree[n.name] = { file: { contents } };
-            } else if (n.type === 'folder') {
-              tree[n.name] = { directory: buildTree(n.children ?? []) };
-            }
-          }
-          return tree;
-        };
-        await wc.mount(buildTree(workspace.files));
         
+        // If it's a new project, mount the entire tree
+        if (lastMountedProjectRef.current !== workspace.activeProjectId) {
+          const buildTree = (nodes: FileNode[]): FileSystemTree => {
+            const tree: FileSystemTree = {};
+            for (const n of nodes) {
+              if (n.type === 'file') {
+                let contents = n.content ?? '';
+                if (inspectEnabled && (n.name === 'index.html' || n.name.endsWith('.html'))) {
+                  contents = contents.replace(/<head([^>]*)>/i, `<head$1><script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init({defaults:{displaySize:100,transparency:1,theme:'Dark'}}); eruda.show(); eruda._entryBtn.hide();</script>`);
+                }
+                tree[n.name] = { file: { contents } };
+              } else if (n.type === 'folder') {
+                tree[n.name] = { directory: buildTree(n.children ?? []) };
+              }
+            }
+            return tree;
+          };
+          await wc.mount(buildTree(workspace.files));
+          lastMountedProjectRef.current = workspace.activeProjectId;
+        } else {
+          // If just toggling inspect, only rewrite HTML files
+          const updateHtmlFiles = async (nodes: FileNode[], path = '') => {
+            for (const n of nodes) {
+              const fullPath = path ? `${path}/${n.name}` : `/${n.name}`;
+              if (n.type === 'file' && (n.name === 'index.html' || n.name.endsWith('.html'))) {
+                let contents = n.content ?? '';
+                if (inspectEnabled) {
+                  contents = contents.replace(/<head([^>]*)>/i, `<head$1><script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init({defaults:{displaySize:100,transparency:1,theme:'Dark'}}); eruda.show(); eruda._entryBtn.hide();</script>`);
+                }
+                await wc.fs.writeFile(fullPath, contents).catch(() => {});
+              } else if (n.type === 'folder') {
+                await updateHtmlFiles(n.children ?? [], fullPath);
+              }
+            }
+          };
+          await updateHtmlFiles(workspace.files);
+        }
       } catch (e) {
         console.error('Failed to sync to WebContainer:', e);
       }
     };
     syncToWC();
-    // Re-run sync when inspect is toggled
-  }, [workspace.files, inspectEnabled]);
+  }, [workspace.activeProjectId, workspace.isReady, inspectEnabled]); // Intentionally omitting workspace.files to avoid remount loop
 
   // Removed STARTER_FILES since we use BootstrapScreen now.
 
@@ -543,10 +567,10 @@ export const SmartCodeEditor = () => {
             setTimeout(() => {
               setBottomPanelOpen(true);
               setBottomTab('terminal');
-              const npmInstall = 'npm install --no-audit --no-fund';
-              const cmd = type === 'react' ? `cd ${folderName} && ${npmInstall} && npm run dev` 
-                        : type === 'express' ? `cd ${folderName} && ${npmInstall} && npm run dev`
-                        : `cd ${folderName} && ${npmInstall} && npm start`;
+              const npmInstall = 'npm install';
+              const cmd = type === 'react' ? `${npmInstall} && npm run dev` 
+                        : type === 'express' ? `${npmInstall} && npm run dev`
+                        : `${npmInstall} && npm start`;
               const termId = terminals.length > 0 ? terminals[0].id : activeTerminalId;
               const term = terminalRefs.current[termId];
               if (term) term.execute(cmd);
@@ -599,10 +623,10 @@ export const SmartCodeEditor = () => {
             setTimeout(() => {
               setBottomPanelOpen(true);
               setBottomTab('terminal');
-              const npmInstall = 'npm install --no-audit --no-fund';
-              const cmd = type === 'react' ? `cd ${folderName} && ${npmInstall} && npm run dev` 
-                        : type === 'express' ? `cd ${folderName} && ${npmInstall} && npm run dev`
-                        : `cd ${folderName} && ${npmInstall} && npm start`;
+              const npmInstall = 'npm install';
+              const cmd = type === 'react' ? `${npmInstall} && npm run dev` 
+                        : type === 'express' ? `${npmInstall} && npm run dev`
+                        : `${npmInstall} && npm start`;
               const termId = terminals.length > 0 ? terminals[0].id : activeTerminalId;
               const term = terminalRefs.current[termId];
               if (term) term.execute(cmd);

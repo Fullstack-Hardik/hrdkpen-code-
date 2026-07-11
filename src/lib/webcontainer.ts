@@ -1,4 +1,5 @@
 import { WebContainer } from '@webcontainer/api';
+import { getLanguageFromFilename } from './languages';
 
 /**
  * Singleton instance of the WebContainer.
@@ -96,7 +97,7 @@ export async function readWebContainerFS(existingNodes: import('@/types').FileNo
             name: entry.name,
             type: 'file',
             content: contents,
-            language: entry.name.split('.').pop() || 'plaintext',
+            language: getLanguageFromFilename(entry.name),
           });
         }
       }
