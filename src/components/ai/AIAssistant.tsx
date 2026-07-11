@@ -138,7 +138,7 @@ export const AIAssistant = forwardRef<AIAssistantRef, {}>((props, ref) => {
       localStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
     } catch (err) {
       console.error(err);
-      setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: '**Error:** Failed to connect to Gemini API. Check your API key or network.' }] }]);
+      setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: '**API Key Required:** To use Nova AI in this standalone React app, please click the Settings (gear) icon in the top right and enter a free Gemini API key.' }] }]);
     } finally {
       setIsGenerating(false);
       textareaRef.current?.focus();
