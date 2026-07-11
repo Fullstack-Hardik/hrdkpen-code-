@@ -24,6 +24,17 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          monaco: ['@monaco-editor/react', 'monaco-editor'],
+          ui: ['lucide-react', 'recharts', 'sonner', 'embla-carousel-react']
+        }
+      }
+    }
+  },
   preview: {
     headers: {
       'Cross-Origin-Embedder-Policy': 'require-corp',
