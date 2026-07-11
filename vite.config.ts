@@ -29,7 +29,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
-          monaco: ['@monaco-editor/react', 'monaco-editor'],
+          monaco: ['@monaco-editor/react'],
           ui: ['lucide-react', 'recharts', 'sonner', 'embla-carousel-react']
         }
       }
