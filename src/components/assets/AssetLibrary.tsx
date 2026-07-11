@@ -3,7 +3,7 @@ import { Search, Download, Copy, Image as ImageIcon, Loader2 } from 'lucide-reac
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
-const PIXABAY_API_KEY = '44960484-fee9decec027c63657796ef2e';
+const PIXABAY_API_KEY = import.meta.env.VITE_PIXABAY_API_KEY || '44960484-fee9decec027c63657796ef2e';
 
 interface PixabayImage {
   id: number;
