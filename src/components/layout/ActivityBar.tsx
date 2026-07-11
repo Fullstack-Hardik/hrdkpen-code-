@@ -40,7 +40,7 @@ export const ActivityBar = ({
     { id: 'search',     icon: <FolderSearch className="w-5 h-5" />, label: 'Search',   position: 'top' },
     { id: 'projects',   icon: <FolderTree className="w-5 h-5" />,   label: 'Projects', position: 'top' },
     { id: 'excalidraw', icon: <PenTool className="w-5 h-5" />,      label: 'Whiteboard', position: 'top' },
-    { id: 'mdn',        icon: <BookOpen className="w-5 h-5" />,     label: 'MDN Web Docs', position: 'top' },
+    { id: 'mdn',        icon: <BookOpen className="w-5 h-5" />,     label: 'DevDocs', position: 'top' },
     { id: 'learn',      icon: <GraduationCap className="w-5 h-5" />, label: 'Learn', position: 'top' },
   ];
 

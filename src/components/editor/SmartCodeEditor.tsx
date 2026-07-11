@@ -833,7 +833,7 @@ http.createServer((req, res) => {
               const toolId = `tool:${view}`;
               const existing = openTabs.find(t => t.id === toolId);
               if (!existing) {
-                const name = view === 'excalidraw' ? 'Whiteboard' : view === 'mdn' ? 'MDN Docs' : 'Learn Web Dev';
+                const name = view === 'excalidraw' ? 'Whiteboard' : view === 'mdn' ? 'DevDocs' : 'Learn Web Dev';
                 setOpenTabs(prev => [...prev, {
                   id: toolId,
                   name,
@@ -949,7 +949,7 @@ http.createServer((req, res) => {
                         activeFile.id === 'tool:excalidraw' ? (
                           <IframePanel title="Excalidraw" url="https://excalidraw.com/" icon={<PenTool className="w-5 h-5" />} />
                         ) : activeFile.id === 'tool:mdn' ? (
-                          <IframePanel title="MDN Web Docs" url="https://corsproxy.io/?url=https%3A%2F%2Fdeveloper.mozilla.org%2Fen-US%2Fdocs%2FWeb" icon={<BookOpen className="w-5 h-5" />} />
+                          <IframePanel title="DevDocs" url="https://devdocs.io/" icon={<BookOpen className="w-5 h-5" />} />
                         ) : (
                           <IframePanel title="Learn Web Dev" url="https://corsproxy.io/?url=https%3A%2F%2Fweb.dev%2Flearn" icon={<GraduationCap className="w-5 h-5" />} />
                         )
