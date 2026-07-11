@@ -170,13 +170,19 @@ export const LivePreview = ({
   const openInNewTab = useCallback(() => {
     // If it's a real external WebContainer URL, open it directly
     if (currentUrl && !currentUrl.startsWith(window.location.origin)) {
-      window.open(currentUrl, '_blank');
+      // Add trailing slash to prevent Vite/WebContainer proxy 404s on root
+      const finalUrl = currentUrl.endsWith('/') ? currentUrl : `${currentUrl}/`;
+      window.open(finalUrl, '_blank');
       return;
     }
-    // Otherwise fallback to Blob URL which works for static files
+    // Otherwise fallback to document.write to avoid Chrome Blob URL restrictions (which cause 404)
     const doc = buildDocument(htmlContent, cssContent, jsContent, isInspect);
-    const blob = new Blob([doc], { type: 'text/html' });
-    window.open(URL.createObjectURL(blob), '_blank');
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.open();
+      win.document.write(doc);
+      win.document.close();
+    }
   }, [htmlContent, cssContent, jsContent, currentUrl, isInspect]);
 
   const download = useCallback(() => {

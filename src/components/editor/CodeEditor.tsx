@@ -14,6 +14,7 @@ interface CodeEditorProps {
   onChange: (value: string) => void;
   language: string;
   fileName: string;
+  fileId?: string;
   settings: EditorSettings;
   /** Called when the user triggers run (Ctrl+Enter) */
   onRun?: () => void;
@@ -105,6 +106,7 @@ export const CodeEditor = ({
   onChange,
   language,
   fileName,
+  fileId,
   settings,
   onRun,
   onCursorChange,
@@ -144,6 +146,14 @@ export const CodeEditor = ({
       module: monaco.languages.typescript.ModuleKind.ESNext,
       target: monaco.languages.typescript.ScriptTarget.ES2020,
       lib: ['es2020', 'dom'],
+      jsx: monaco.languages.typescript.JsxEmit.React,
+    });
+    tsDefaults.setCompilerOptions({
+      allowJs: true, allowNonTsExtensions: true,
+      module: monaco.languages.typescript.ModuleKind.ESNext,
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      lib: ['es2020', 'dom'],
+      jsx: monaco.languages.typescript.JsxEmit.React,
     });
 
     // C/C++ completion snippets
@@ -267,8 +277,9 @@ export const CodeEditor = ({
   return (
     <div className="h-full min-h-0">
       <Editor
-        value={value}
-        language={language}
+        path={fileId || fileName} // Use fileId for Monaco's model caching to preserve state across tabs
+        defaultValue={value}
+        defaultLanguage={language}
         onChange={v => onChange(v ?? '')}
         onMount={handleMount}
         options={{
@@ -282,9 +293,9 @@ export const CodeEditor = ({
           rulers: [80, 120],
           automaticLayout: true,
           scrollBeyondLastLine: false,
-          smoothScrolling: true,
-          cursorBlinking: 'smooth',
-          cursorSmoothCaretAnimation: 'on',
+          smoothScrolling: false,
+          cursorBlinking: 'blink',
+          cursorSmoothCaretAnimation: 'off',
           renderWhitespace: 'selection',
           autoIndent: 'full',
           autoClosingBrackets: 'always',

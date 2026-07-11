@@ -36,13 +36,15 @@ import { getWebContainer, readWebContainerFS } from '@/lib/webcontainer';
 import { downloadProject, publishProject } from '@/lib/publish';
 import { useToast } from '@/hooks/use-toast';
 import type { FileSystemTree } from '@webcontainer/api';
+import { processManager } from '@/lib/processManager';
+import { fsSyncService } from '@/lib/fsSync';
 
 import type { FileNode } from '@/types';
 
 // ─────────────────── Types ───────────────────
 import { DocsViewer } from '@/components/docs/DocsViewer';
 
-export type BottomPanel = 'terminal' | 'output' | 'problems' | 'inspect';
+export type BottomPanel = 'terminal' | 'output' | 'problems' | 'inspect' | 'help';
 type RightPanel  = 'preview' | 'ai' | 'docs' | 'assets' | null;
 
 // ─────────────────── Starter workspace ───────────────────
@@ -70,6 +72,7 @@ export const SmartCodeEditor = () => {
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
   const [bottomTab, setBottomTab]         = useState<BottomPanel>('terminal');
   const [searchQuery, setSearchQuery]     = useState('');
+  const [isScaffolding, setIsScaffolding] = useState(false);
 
   // Editor diagnostics
   const [problems, setProblems]   = useState<Problem[]>([]);
@@ -85,9 +88,28 @@ export const SmartCodeEditor = () => {
   const [paletteOpen, setPaletteOpen] = useState(false);
 
   // ─── Terminal Pages State ───
-  const [terminals, setTerminals] = useState<{ id: string; name: string }[]>([{ id: 'term-1', name: 'bash' }]);
+  const [terminals, setTerminals] = useState<{ id: string; name: string; isManaged?: boolean }[]>([{ id: 'term-1', name: 'bash' }]);
   const [activeTerminalId, setActiveTerminalId] = useState('term-1');
   const terminalRefs = useRef<Record<string, TerminalHandle | null>>({});
+
+  useEffect(() => {
+    if (!workspace.activeProjectId) return;
+    const unsubscribe = processManager.subscribe((processes) => {
+       const projectProcs = processes.filter(p => p.projectId === workspace.activeProjectId);
+       setTerminals(prev => {
+          const next = [...prev];
+          let changed = false;
+          for (const p of projectProcs) {
+             if (!next.find(t => t.id === p.id)) {
+                next.push({ id: p.id, name: p.command, isManaged: true });
+                changed = true;
+             }
+          }
+          return changed ? next : prev;
+       });
+    });
+    return () => unsubscribe();
+  }, [workspace.activeProjectId]);
 
   const handleAddTerminal = () => {
     const id = `term-${Date.now()}`;
@@ -166,6 +188,45 @@ export const SmartCodeEditor = () => {
           };
           await wc.mount(buildTree(workspace.files));
           lastMountedProjectRef.current = workspace.activeProjectId;
+          
+          // Start watching FS changes
+          await fsSyncService.startWatching();
+
+          // Start a lightweight static server if this is a static project (no package.json)
+          const hasPackageJson = workspace.files.some(f => f.name === 'package.json');
+          if (!hasPackageJson && staticServerRunning.current !== workspace.activeProjectId) {
+            staticServerRunning.current = workspace.activeProjectId;
+            
+            const serverScript = `
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+http.createServer((req, res) => {
+  let urlPath = req.url.split('?')[0];
+  let p = path.join(__dirname, urlPath === '/' ? 'index.html' : urlPath);
+  if (!fs.existsSync(p)) { 
+    res.statusCode = 404; 
+    return res.end('404 Not Found'); 
+  }
+  const ext = path.extname(p);
+  const mime = {
+    '.html': 'text/html',
+    '.js': 'text/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpg',
+    '.svg': 'image/svg+xml'
+  }[ext] || 'text/plain';
+  res.setHeader('Content-Type', mime);
+  res.end(fs.readFileSync(p));
+}).listen(3000, () => console.log('Static server started'));
+`;
+            await wc.fs.writeFile('/.static-server.js', serverScript);
+            // We use the raw WebContainer spawn here so it runs silently in the background
+            // without cluttering the Terminal UI, but still triggers 'server-ready'
+            wc.spawn('node', ['/.static-server.js']).catch(console.error);
+          }
         } else {
           // If just toggling inspect, only rewrite HTML files
           const updateHtmlFiles = async (nodes: FileNode[], path = '') => {
@@ -191,6 +252,25 @@ export const SmartCodeEditor = () => {
     syncToWC();
   }, [workspace.activeProjectId, workspace.isReady, inspectEnabled]); // Intentionally omitting workspace.files to avoid remount loop
 
+  // Use a ref to hold latest workspace files for the sync service to preserve UUIDs
+  const workspaceFilesRef = useRef(workspace.files);
+  useEffect(() => {
+    workspaceFilesRef.current = workspace.files;
+  }, [workspace.files]);
+
+  // Listen to FS changes from WebContainer and update React state
+  useEffect(() => {
+    if (!workspace.isReady || !workspace.activeProjectId) return;
+    const unsubscribe = fsSyncService.subscribe(
+      (newFiles) => {
+        // Merge content to prevent overwriting active editor state if possible, or just accept true FS state
+        workspace.setWorkspaceFiles(newFiles);
+      },
+      () => workspaceFilesRef.current
+    );
+    return () => unsubscribe();
+  }, [workspace.isReady, workspace.activeProjectId, workspace.setWorkspaceFiles]);
+
   // Removed STARTER_FILES since we use BootstrapScreen now.
 
 
@@ -201,6 +281,22 @@ export const SmartCodeEditor = () => {
     setOpenTabs(prev => prev.find(t => t.id === fresh.id) ? prev : [...prev, fresh]);
     setActiveTabId(fresh.id);
   }, [workspace]);
+
+  // Keep open tabs in sync with workspace.files for external changes (like npm install)
+  useEffect(() => {
+    setOpenTabs(prev => {
+      let changed = false;
+      const next = prev.map(tab => {
+        const wFile = workspace.findFile(tab.id);
+        if (wFile && wFile.content !== tab.content) {
+          changed = true;
+          return { ...tab, content: wFile.content };
+        }
+        return tab;
+      });
+      return changed ? next : prev;
+    });
+  }, [workspace.files, workspace.findFile]);
 
   const closeTab = useCallback((id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -216,8 +312,8 @@ export const SmartCodeEditor = () => {
   const handleContentChange = useCallback((content: string) => {
     if (!activeTabId) return;
     
-    // Fast local state update
-    setOpenTabs(prev => prev.map(t => t.id === activeTabId ? { ...t, content } : t));
+    // We intentionally DO NOT update openTabs locally here to prevent full React re-renders on every keystroke.
+    // Monaco Editor manages its own fast internal state.
     
     // Debounce the heavy global workspace tree update and WebContainer FS write
     if (contentChangeTimeoutRef.current) clearTimeout(contentChangeTimeoutRef.current);
@@ -558,20 +654,29 @@ export const SmartCodeEditor = () => {
           workspace.setWorkspaceFiles(updatedNodes);
         }}
         onLoadTemplate={async (type) => {
-          const folderName = await workspace.loadTemplate(type);
+          const result = await workspace.loadTemplate(type);
           
-          if (type === 'react' || type === 'express' || type === 'node') {
-            // Give the state a moment to settle, then sync files and start dev
-            setTimeout(() => {
+          if (result.needsInstall) {
+            setIsScaffolding(true);
+            setTimeout(async () => {
               setBottomPanelOpen(true);
               setBottomTab('terminal');
-              const npmInstall = 'npm install';
-              const cmd = type === 'react' ? `${npmInstall} && npm run dev` 
-                        : type === 'express' ? `${npmInstall} && npm run dev`
-                        : `${npmInstall} && npm start`;
-              const termId = terminals.length > 0 ? terminals[0].id : activeTerminalId;
-              const term = terminalRefs.current[termId];
-              if (term) term.execute(cmd);
+              
+              if (result.type === 'react') {
+                 const p1 = await processManager.spawn(result.id, 'npx', ['-y', 'create-vite@latest', '.', '--template', 'react-ts']);
+                 await p1.exit;
+                 const p2 = await processManager.spawn(result.id, 'npm', ['install', '--no-audit', '--no-fund', '--legacy-peer-deps']);
+                 await p2.exit;
+                 await processManager.spawn(result.id, 'npm', ['run', 'dev']);
+              } else if (result.type === 'express' || result.type === 'node') {
+                 const p1 = await processManager.spawn(result.id, 'npm', ['init', '-y']);
+                 await p1.exit;
+                 if (result.type === 'express') {
+                    const p2 = await processManager.spawn(result.id, 'npm', ['install', 'express', '--no-audit', '--no-fund']);
+                    await p2.exit;
+                 }
+              }
+              setIsScaffolding(false);
             }, 1000);
           }
         }}
@@ -615,19 +720,29 @@ export const SmartCodeEditor = () => {
         onDeleteProject={workspace.deleteProject}
         onLoadTemplate={async (type) => {
           setShowBootstrap(false);
-          const folderName = await workspace.loadTemplate(type as any);
+          const result = await workspace.loadTemplate(type as any);
           
-          if (type === 'react' || type === 'express' || type === 'node') {
-            setTimeout(() => {
+          if (result.needsInstall) {
+            setIsScaffolding(true);
+            setTimeout(async () => {
               setBottomPanelOpen(true);
               setBottomTab('terminal');
-              const npmInstall = 'npm install';
-              const cmd = type === 'react' ? `${npmInstall} && npm run dev` 
-                        : type === 'express' ? `${npmInstall} && npm run dev`
-                        : `${npmInstall} && npm start`;
-              const termId = terminals.length > 0 ? terminals[0].id : activeTerminalId;
-              const term = terminalRefs.current[termId];
-              if (term) term.execute(cmd);
+              
+              if (result.type === 'react') {
+                 const p1 = await processManager.spawn(result.id, 'npx', ['-y', 'create-vite@latest', '.', '--template', 'react-ts']);
+                 await p1.exit;
+                 const p2 = await processManager.spawn(result.id, 'npm', ['install', '--no-audit', '--no-fund', '--legacy-peer-deps']);
+                 await p2.exit;
+                 await processManager.spawn(result.id, 'npm', ['run', 'dev']);
+              } else if (result.type === 'express' || result.type === 'node') {
+                 const p1 = await processManager.spawn(result.id, 'npm', ['init', '-y']);
+                 await p1.exit;
+                 if (result.type === 'express') {
+                    const p2 = await processManager.spawn(result.id, 'npm', ['install', 'express', '--no-audit', '--no-fund']);
+                    await p2.exit;
+                 }
+              }
+              setIsScaffolding(false);
             }, 1000);
           }
         }} 
@@ -653,6 +768,15 @@ export const SmartCodeEditor = () => {
 
   return (
     <div className="ide-root no-select">
+      {isScaffolding && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#1e1e2e]/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center bg-[#181825] p-6 rounded-lg border border-[#313244] shadow-2xl">
+            <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
+            <h3 className="text-[#cdd6f4] font-medium text-lg">Setting up project...</h3>
+            <p className="text-[#a6adc8] text-sm mt-2">Running npm installation. See terminal for details.</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <SystemHeader
         activeFile={activeFile}
@@ -812,7 +936,7 @@ export const SmartCodeEditor = () => {
                         )
                       ) : (
                         <CodeEditor
-                          key={activeFile.id}
+                          fileId={activeFile.id}
                           value={activeFile.content ?? ''}
                           onChange={handleContentChange}
                           language={activeFile.language || getLanguageFromFilename(activeFile.name)}
@@ -1033,8 +1157,7 @@ export const SmartCodeEditor = () => {
                         style={{ display: activeTerminalId === term.id ? 'block' : 'none' }}
                       >
                         <Terminal
-                          ref={el => terminalRefs.current[term.id] = el}
-                          getFileSystem={() => workspace.files}
+                          ref={el => { terminalRefs.current[term.id] = el; }}
                         />
                       </div>
                     ))}

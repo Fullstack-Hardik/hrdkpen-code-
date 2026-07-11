@@ -113,7 +113,7 @@ export const AIAssistant = ({ onCodeInsert, activeFile }: AIAssistantProps) => {
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const chat = model.startChat({
-        history: [...newMessages.slice(0, -1)].map(m => ({
+        history: messages.map(m => ({
           role: m.role === 'assistant' ? 'model' : 'user',
           parts: [{ text: m.content }],
         }))

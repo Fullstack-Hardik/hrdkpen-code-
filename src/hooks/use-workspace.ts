@@ -337,9 +337,16 @@ export function useWorkspace() {
 
   const loadTemplate = useCallback(async (type: keyof typeof TEMPLATES | 'empty') => {
     let nodes: FileNode[] = [];
-    if (type !== 'empty') {
+    let needsInstall = false;
+
+    // For Node/React/Express, we want to create an empty project and run real commands
+    if (type === 'react' || type === 'node' || type === 'express') {
+      nodes = []; // Empty project, will be scaffolded by processManager
+      needsInstall = true;
+    } else if (type !== 'empty') {
       nodes = TEMPLATES[type]();
     }
+
     const templateName = type === 'empty' ? 'Empty Project' : `${type}-project`;
     
     // Find unique name across all projects
@@ -349,8 +356,8 @@ export function useWorkspace() {
       projName = `${templateName}-${counter++}`;
     }
     
-    await createProject(projName, nodes);
-    return projName;
+    const id = await createProject(projName, nodes);
+    return { id, projName, type, needsInstall };
   }, [createProject, projects]);
 
   return {
@@ -372,9 +379,9 @@ export function useWorkspace() {
     createProject,
     renameProject,
     copyProject,
-    setWorkspaceFiles: (newFiles: FileNode[]) => {
+    setWorkspaceFiles: useCallback((newFiles: FileNode[]) => {
       setFiles(newFiles);
       saveWorkspace(newFiles);
-    },
+    }, [saveWorkspace]),
   };
 }

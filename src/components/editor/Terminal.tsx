@@ -7,6 +7,8 @@ import { getWebContainer } from '@/lib/webcontainer';
 import { executeJavaScript, executePython, executeCompiled } from '@/lib/execution';
 import '@xterm/xterm/css/xterm.css';
 
+import { processManager } from '@/lib/processManager';
+
 export interface TerminalHandle {
   runCode: (language: string, code: string) => void;
   execute: (cmd: string) => void;
@@ -14,9 +16,10 @@ export interface TerminalHandle {
 
 interface TerminalProps {
   onClose?: () => void;
+  managedProcessId?: string;
 }
 
-export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onClose }, ref) => {
+export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onClose, managedProcessId }, ref) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -61,7 +64,31 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onClose }, 
     });
     resizeObserver.observe(terminalRef.current);
 
-    // Boot WebContainer and connect PTY
+    if (managedProcessId) {
+      // Connect to existing managed process
+      setIsBooting(false);
+      term.writeln(`\x1b[38;5;14mAttached to managed process: ${managedProcessId}\x1b[0m`);
+      
+      const unsubscribe = processManager.subscribe((processes) => {
+         const p = processes.find(p => p.id === managedProcessId);
+         if (p) {
+            // Write new output (this is naive, a real impl might track cursor but for now we write the last lines if they change)
+            // Actually, we should hook into the process stream directly if possible, or just dump the output array.
+            // Since processManager stores the array, let's clear and dump, or just rely on a dedicated stream event.
+            // For simplicity, let's just clear and write the full output when it changes if we are managed.
+            term.clear();
+            p.output.forEach(chunk => term.write(chunk));
+         }
+      });
+      return () => {
+        unsubscribe();
+        resizeObserver.disconnect();
+        term.dispose();
+        xtermRef.current = null;
+      };
+    }
+
+    // Boot WebContainer and connect PTY for interactive jsh
     (async () => {
       try {
         term.writeln('\x1b[38;5;14mBooting WebContainer environment...\x1b[0m');

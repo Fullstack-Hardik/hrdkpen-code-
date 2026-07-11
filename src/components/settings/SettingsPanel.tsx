@@ -16,7 +16,7 @@ interface SettingsPanelProps {
 
 const THEMES: { value: EditorSettings['theme']; label: string }[] = [
   { value: 'smart-dark',  label: 'Catppuccin Dark' },
-  { value: 'dracula',     label: 'Dracula' },
+
   { value: 'github-dark', label: 'GitHub Dark' },
   { value: 'monokai',     label: 'Monokai' },
   { value: 'vs-light',    label: 'Visual Studio Light' },
