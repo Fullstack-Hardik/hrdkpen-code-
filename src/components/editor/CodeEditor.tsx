@@ -7,6 +7,7 @@ import { RUNNABLE_LANGUAGES } from '@/lib/languages';
 export interface EditorAPI {
   format: () => void;
   goToLine: (line: number, col: number) => void;
+  insertTextAtCursor: (text: string) => void;
 }
 
 interface CodeEditorProps {
@@ -18,7 +19,7 @@ interface CodeEditorProps {
   settings: EditorSettings;
   /** Called when the user triggers run (Ctrl+Enter) */
   onRun?: () => void;
-  onCursorChange?: (line: number, col: number) => void;
+  onCursorChange?: (line: number, col: number, pos?: { top: number; left: number }) => void;
   onErrors?: (errors: { line: number; message: string }[]) => void;
   onSelectionChange?: (text: string, pos: { top: number; left: number; height: number } | null) => void;
   onAIAction?: (action: 'explain' | 'fix' | 'optimize', code: string) => void;
@@ -205,9 +206,12 @@ export const CodeEditor = ({
       );
     });
 
-    // Cursor position
+    // Listen for cursor movement
     editor.onDidChangeCursorPosition((e: any) => {
-      onCursorChange?.(e.position.lineNumber, e.position.column);
+      const { lineNumber, column } = e.position;
+      const top = editor.getTopForLineNumber(lineNumber);
+      const left = editor.getOffsetForColumn(lineNumber, column);
+      onCursorChange?.(lineNumber, column, { top, left });
     });
 
     // Selection tracking for Smart Popup
@@ -275,11 +279,20 @@ export const CodeEditor = ({
     // Expose API to parent
     onEditorReady?.({
       format: () => editor.getAction('editor.action.formatDocument')?.run(),
-      goToLine: (line: number, col: number) => {
+      goToLine: (line, col) => {
         editor.setPosition({ lineNumber: line, column: col });
-        editor.revealLineInCenter(line);
-        editor.focus();
+        editor.revealPositionInCenter({ lineNumber: line, column: col });
       },
+      insertTextAtCursor: (text) => {
+        const position = editor.getPosition();
+        if (position) {
+          editor.executeEdits('ai-autocomplete', [{
+            range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+            text: text,
+            forceMoveMarkers: true
+          }]);
+        }
+      }
     });
   }, []);  
 

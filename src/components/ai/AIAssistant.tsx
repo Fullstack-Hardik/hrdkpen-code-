@@ -6,6 +6,7 @@ import {
 
 export interface AIAssistantRef {
   submitPrompt: (prompt: string) => void;
+  autoComplete: (fileContent: string, line: number, col: number) => Promise<string>;
 }
 
 const personas = {
@@ -32,8 +33,8 @@ const personas = {
 };
 
 interface Message {
-  role: 'user' | 'model';
-  parts: { text: string }[];
+  role: 'user' | 'assistant';
+  content: string;
 }
 
 const parseMarkdown = (text: string) => {
@@ -84,7 +85,7 @@ export const AIAssistant = forwardRef<AIAssistantRef, {}>((props, ref) => {
     if (savedHistory) {
       try { setChatHistory(JSON.parse(savedHistory)); } catch (e) {}
     }
-    const savedApiKey = localStorage.getItem('gemini_api_key');
+    const savedApiKey = localStorage.getItem('groq_api_key');
     if (savedApiKey) setApiKey(savedApiKey);
   }, []);
 
@@ -98,6 +99,16 @@ export const AIAssistant = forwardRef<AIAssistantRef, {}>((props, ref) => {
     submitPrompt: (prompt: string) => {
       setUserInput(prompt);
       handleFormSubmit(new Event('submit') as any, prompt);
+    },
+    autoComplete: async (fileContent: string, line: number, col: number) => {
+      const prompt = `You are an expert coder. Please complete the following code at line ${line}, column ${col}. Respond ONLY with the raw code to be inserted at the cursor, without any markdown formatting, backticks, or explanations. Keep it concise.\n\nCode:\n${fileContent}`;
+      try {
+        const result = await callGroqAPI([{ role: 'user', content: prompt }]);
+        return result;
+      } catch (e) {
+        console.error("Auto-complete failed", e);
+        return "";
+      }
     }
   }));
 
@@ -128,42 +139,50 @@ export const AIAssistant = forwardRef<AIAssistantRef, {}>((props, ref) => {
       textareaRef.current.style.height = '52px';
     }
 
-    const newHistory = [...chatHistory, { role: 'user' as const, parts: [{ text }] }];
+    const newHistory = [...chatHistory, { role: 'user' as const, content: text }];
     setChatHistory(newHistory);
 
     try {
-      const responseText = await callGeminiAPI(text, newHistory);
-      const updatedHistory = [...newHistory, { role: 'model' as const, parts: [{ text: responseText }] }];
+      const responseText = await callGroqAPI(newHistory, personas[selectedPersona].system);
+      const updatedHistory = [...newHistory, { role: 'assistant' as const, content: responseText }];
       setChatHistory(updatedHistory);
       localStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
     } catch (err) {
       console.error(err);
-      setChatHistory(prev => [...prev, { role: 'model', parts: [{ text: '**API Key Required:** To use the AI in this standalone React app, please click the Settings (gear) icon in the top right and enter a free Gemini API key.' }] }]);
+      setChatHistory(prev => [...prev, { role: 'assistant', content: '**API Key Required:** To use the AI in this standalone React app, please click the Settings (gear) icon in the top right and enter a free Groq API key.' }]);
     } finally {
       setIsGenerating(false);
       textareaRef.current?.focus();
     }
   };
 
-  const callGeminiAPI = async (prompt: string, history: Message[]) => {
-    const key = apiKey.trim() || import.meta.env.VITE_GEMINI_API_KEY || '';
+  const callGroqAPI = async (history: Message[], systemPrompt?: string) => {
+    const key = apiKey.trim() || import.meta.env.VITE_GROQ_API_KEY || '';
     if (!key) throw new Error("No API key");
 
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+    const apiUrl = `https://api.groq.com/openai/v1/chat/completions`;
+    const messages = systemPrompt 
+      ? [{ role: 'system', content: systemPrompt }, ...history] 
+      : history;
+
     const payload = {
-      contents: history,
-      systemInstruction: { parts: [{ text: personas[selectedPersona].system }] }
+      model: "llama-3.3-70b-versatile",
+      messages,
+      temperature: 0.7,
     };
 
     const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${key}`
+      },
       body: JSON.stringify(payload)
     });
 
-    if (!response.ok) throw new Error("HTTP Error");
+    if (!response.ok) throw new Error("HTTP Error: " + response.statusText);
     const result = await response.json();
-    return result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    return result.choices?.[0]?.message?.content || '';
   };
 
   return (
@@ -215,7 +234,7 @@ export const AIAssistant = forwardRef<AIAssistantRef, {}>((props, ref) => {
                   {msg.role === 'user' ? <User size={16} /> : <Bot size={16} />}
                 </div>
                 <div className={`rounded-2xl p-3 shadow-sm text-sm leading-relaxed overflow-hidden ${msg.role === 'user' ? 'bg-[hsl(var(--blue))] text-white rounded-tr-none' : 'bg-[hsl(var(--surface0))] text-editor-text rounded-tl-none'}`}
-                     dangerouslySetInnerHTML={{ __html: parseMarkdown(msg.parts[0].text) }} />
+                     dangerouslySetInnerHTML={{ __html: parseMarkdown(msg.content) }} />
               </div>
             ))}
             
@@ -272,8 +291,8 @@ export const AIAssistant = forwardRef<AIAssistantRef, {}>((props, ref) => {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <label className="text-[10px] font-semibold uppercase text-editor-text-muted">API Key (Optional)</label>
-              <input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); localStorage.setItem('gemini_api_key', e.target.value); }} placeholder="Using Default" className="w-full bg-[hsl(var(--crust))] border border-editor-border rounded px-2 py-1.5 text-xs focus:outline-none" />
+              <label className="text-[10px] font-semibold uppercase text-editor-text-muted">Groq API Key (Optional)</label>
+              <input type="password" value={apiKey} onChange={e => { setApiKey(e.target.value); localStorage.setItem('groq_api_key', e.target.value); }} placeholder="Using Default" className="w-full bg-[hsl(var(--crust))] border border-editor-border rounded px-2 py-1.5 text-xs focus:outline-none" />
             </div>
           </div>
         )}

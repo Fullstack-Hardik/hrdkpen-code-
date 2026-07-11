@@ -8,11 +8,11 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '@/components/ui/context-menu';
-import { X, Monitor, Bot, Search, Minus, Square, BookOpen, Plus, Image as ImageIcon, PenTool, FolderTree, GraduationCap, Copy, Check } from 'lucide-react';
+import { X, Monitor, Bot, Search, Minus, Square, BookOpen, Plus, Image as ImageIcon, PenTool, FolderTree, GraduationCap, Copy, Check, Brain, Loader2 } from 'lucide-react';
 
 import { SystemHeader } from './SystemHeader';
 import { FileExplorer } from './FileExplorer';
-import { CodeEditor } from './CodeEditor';
+import { CodeEditor, type EditorAPI } from './CodeEditor';
 import { LivePreview } from './LivePreview';
 import { Terminal, type TerminalHandle } from './Terminal';
 import { PublishModal } from '@/components/publish/PublishModal';
@@ -77,7 +77,7 @@ export const SmartCodeEditor = () => {
 
   // Editor diagnostics
   const [problems, setProblems]   = useState<Problem[]>([]);
-  const [cursorPos, setCursorPos] = useState({ line: 1, column: 1 });
+  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
 
   // Output panel
   const [outputLines, setOutputLines] = useState<OutputLine[]>([]);
@@ -141,13 +141,18 @@ export const SmartCodeEditor = () => {
       }
     }
   };
-  const editorRef   = useRef<{ format: () => void; goToLine: (line: number, col: number) => void } | null>(null);
+  const editorRef   = useRef<EditorAPI | null>(null);
 
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [serverReadyCount, setServerReadyCount] = useState(0);
   const [inspectEnabled, setInspectEnabled] = useState(false);
   const aiAssistantRef = useRef<AIAssistantRef>(null);
   const staticServerRunning = useRef<string | null>(null);
+
+  // Auto-complete state
+  const [brainWidget, setBrainWidget] = useState<{ visible: boolean; top: number; left: number; loading: boolean }>({ visible: false, top: 0, left: 0, loading: false });
+  const cursorPixelRef = useRef({ top: 0, left: 0 });
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // ─── Listen to WebContainer server ready ───
   useEffect(() => {
@@ -470,6 +475,27 @@ http.createServer((req, res) => {
       addOutput('error', String(e));
     }
   }, [activeFile, addOutput]);
+
+  const handleBrainClick = async () => {
+    if (!activeFile?.content || !aiAssistantRef.current || !editorRef.current) return;
+    
+    setBrainWidget(prev => ({ ...prev, loading: true }));
+    const generatedCode = await aiAssistantRef.current.autoComplete(
+      activeFile.content,
+      cursorPos.line,
+      cursorPos.col
+    );
+    
+    if (generatedCode && editorRef.current) {
+      editorRef.current.insertTextAtCursor(generatedCode);
+    }
+    setBrainWidget(prev => ({ ...prev, visible: false, loading: false }));
+  };
+
+  const handleSmartAction = (action: 'explain' | 'fix' | 'optimize') => {
+      const message = `Please ${action} this code:\n\`\`\`\n${selection.text}\n\`\`\``;
+      window.open(`https://chatgpt.com/?q=${encodeURIComponent(message)}`, '_blank');
+  };
 
   // Ctrl+Enter global shortcut
   useEffect(() => {
@@ -922,7 +948,7 @@ http.createServer((req, res) => {
                         <ContextMenuItem 
                           onClick={() => {
                             setOpenTabs([]);
-                            setActiveTabId(null);
+                            setActiveTabId('');
                           }}
                         >
                           Close All
@@ -953,7 +979,17 @@ http.createServer((req, res) => {
                           fileName={activeFile.name}
                           settings={settings}
                           onRun={runActiveFile}
-                          onCursorChange={(line, column) => setCursorPos({ line, column })}
+                          onCursorChange={(line, col, pos) => {
+                            setCursorPos({ line, col });
+                            if (pos) {
+                              cursorPixelRef.current = pos;
+                              setBrainWidget(prev => ({ ...prev, visible: false }));
+                              if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+                              idleTimerRef.current = setTimeout(() => {
+                                setBrainWidget({ visible: true, top: pos.top, left: pos.left, loading: false });
+                              }, 5000);
+                            }
+                          }}
                           onSelectionChange={(text, pos) => setSelection({ text, pos })}
                           onErrors={handleEditorErrors}
                           onEditorReady={api => { editorRef.current = api; }}
@@ -972,11 +1008,22 @@ http.createServer((req, res) => {
                       <SmartPopup 
                         position={selection.pos}
                         text={selection.text}
-                        onAction={(action) => {
-                          const message = `Please ${action} this code:\n\`\`\`\n${selection.text}\n\`\`\``;
-                          window.open(`https://chatgpt.com/?q=${encodeURIComponent(message)}`, '_blank');
-                        }}
+                        onAction={handleSmartAction}
                       />
+                      {brainWidget.visible && (
+                        <div 
+                          className="absolute z-50 flex items-center justify-center p-1.5 rounded shadow-lg bg-[hsl(var(--yellow)/0.2)] border border-[hsl(var(--yellow)/0.5)] cursor-pointer hover:bg-[hsl(var(--yellow)/0.4)] transition-all animate-fade-in"
+                          style={{ top: brainWidget.top - 28, left: brainWidget.left + 12 }}
+                          onClick={handleBrainClick}
+                          title="Auto-complete code"
+                        >
+                          {brainWidget.loading ? (
+                            <Loader2 className="w-4 h-4 text-[hsl(var(--yellow))] animate-spin" />
+                          ) : (
+                            <Brain className="w-4 h-4 text-[hsl(var(--yellow))] animate-pulse" />
+                          )}
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="h-full flex flex-col items-center justify-center gap-4 text-center select-none">
