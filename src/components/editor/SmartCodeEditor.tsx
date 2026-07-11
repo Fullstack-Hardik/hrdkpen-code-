@@ -19,6 +19,7 @@ import { PublishModal } from '@/components/publish/PublishModal';
 import { StatusBar } from './StatusBar';
 import { ActivityBar, type ActivityBarView } from '@/components/layout/ActivityBar';
 import { SmartPopup } from '@/components/ai/SmartPopup';
+import { AIAssistant, AIAssistantRef } from '@/components/ai/AIAssistant';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { ProblemsPanel, type Problem } from '@/components/panels/ProblemsPanel';
 import { OutputPanel, type OutputLine, makeOutputLine } from '@/components/panels/OutputPanel';
@@ -145,6 +146,7 @@ export const SmartCodeEditor = () => {
   const [serverUrl, setServerUrl] = useState<string | null>(null);
   const [serverReadyCount, setServerReadyCount] = useState(0);
   const [inspectEnabled, setInspectEnabled] = useState(false);
+  const aiAssistantRef = useRef<AIAssistantRef>(null);
   const staticServerRunning = useRef<string | null>(null);
 
   // ─── Listen to WebContainer server ready ───
@@ -708,10 +710,6 @@ http.createServer((req, res) => {
   const errorCount = problems.filter(p => p.severity === 'error').length;
   const warningCount = problems.filter(p => p.severity === 'warning').length;
 
-  // Removed duplicate server-ready listener
-
-  // Removed hasBootstrapped useEffect to fix Bootstrap screen locking
-
   if (!workspace.isReady) {
     return (
       <div className="flex flex-col items-center justify-center w-screen h-screen bg-[#1e1e2e] text-[#cdd6f4]">
@@ -959,6 +957,16 @@ http.createServer((req, res) => {
                           onSelectionChange={(text, pos) => setSelection({ text, pos })}
                           onErrors={handleEditorErrors}
                           onEditorReady={api => { editorRef.current = api; }}
+                          onAIAction={(action, code) => {
+                            setRightPanel('ai');
+                            setTimeout(() => {
+                              let prompt = '';
+                              if (action === 'explain') prompt = `Please explain the following code:\n\n\`\`\`\n${code}\n\`\`\``;
+                              else if (action === 'fix') prompt = `Please find and fix any bugs in this code:\n\n\`\`\`\n${code}\n\`\`\``;
+                              else if (action === 'optimize') prompt = `Please optimize the following code for performance and readability:\n\n\`\`\`\n${code}\n\`\`\``;
+                              aiAssistantRef.current?.submitPrompt(prompt);
+                            }, 100);
+                          }}
                         />
                       )}
                       <SmartPopup 
@@ -1013,6 +1021,13 @@ http.createServer((req, res) => {
                         >
                           <Monitor className="w-3.5 h-3.5" />
                           Preview
+                        </button>
+                        <button
+                          className={`panel-tab ${rightPanel === 'ai' ? 'active' : ''}`}
+                          onClick={() => setRightPanel('ai')}
+                        >
+                          <Bot className="w-3.5 h-3.5" />
+                          Nova AI
                         </button>
                         <button
                           className={`panel-tab ${rightPanel === 'docs' ? 'active' : ''}`}
@@ -1075,6 +1090,8 @@ http.createServer((req, res) => {
                             addOutput(type as OutputLine['type'], args.join(' '));
                           }}
                         />
+                      ) : rightPanel === 'ai' ? (
+                        <AIAssistant ref={aiAssistantRef} />
                       ) : rightPanel === 'assets' ? (
                         <AssetLibrary />
                       ) : rightPanel === 'docs' ? (

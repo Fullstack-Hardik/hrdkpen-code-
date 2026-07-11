@@ -21,6 +21,7 @@ interface CodeEditorProps {
   onCursorChange?: (line: number, col: number) => void;
   onErrors?: (errors: { line: number; message: string }[]) => void;
   onSelectionChange?: (text: string, pos: { top: number; left: number; height: number } | null) => void;
+  onAIAction?: (action: 'explain' | 'fix' | 'optimize', code: string) => void;
   /** Called once when Monaco is mounted — exposes format/goToLine imperatively */
   onEditorReady?: (api: EditorAPI) => void;
 }
@@ -234,6 +235,40 @@ export const CodeEditor = ({
         });
       } else {
         onSelectionChange?.('', null);
+      }
+    });
+
+    // Add AI actions to context menu
+    editor.addAction({
+      id: 'ai-explain',
+      label: '✨ AI: Explain Code',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 1,
+      run: (ed: any) => {
+        const text = ed.getModel()?.getValueInRange(ed.getSelection());
+        if (text && onAIAction) onAIAction('explain', text);
+      }
+    });
+
+    editor.addAction({
+      id: 'ai-fix',
+      label: '✨ AI: Fix Bug',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 2,
+      run: (ed: any) => {
+        const text = ed.getModel()?.getValueInRange(ed.getSelection());
+        if (text && onAIAction) onAIAction('fix', text);
+      }
+    });
+
+    editor.addAction({
+      id: 'ai-optimize',
+      label: '✨ AI: Optimize Code',
+      contextMenuGroupId: 'navigation',
+      contextMenuOrder: 3,
+      run: (ed: any) => {
+        const text = ed.getModel()?.getValueInRange(ed.getSelection());
+        if (text && onAIAction) onAIAction('optimize', text);
       }
     });
 
