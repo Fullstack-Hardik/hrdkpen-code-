@@ -1,18 +1,22 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { get, set } from 'idb-keyval';
+import { get, set, del } from 'idb-keyval';
 import type { FileNode } from '@/types';
 import { getLanguageFromFilename } from '@/lib/languages';
 import { TEMPLATES } from '@/lib/templates';
+import { fsSyncService } from '@/lib/fsSync';
 
-const PROJECTS_KEY = 'hrdkpen_projects';
-const ACTIVE_PROJECT_KEY = 'hrdkpen_active_project';
-const WORKSPACE_PREFIX = 'hrdkpen_workspace_';
+export const PROJECTS_KEY = 'hrdkpen_projects';
+export const ACTIVE_PROJECT_KEY = 'hrdkpen_active_project';
+export const WORKSPACE_PREFIX = 'hrdkpen_workspace_';
 const LEGACY_STORAGE_KEY = 'hrdkpen_workspace';
 
 export interface ProjectMeta {
   id: string;
   name: string;
   lastOpened: number;
+  createdAt?: number;
+  isFavorite?: boolean;
+  language?: string; // primary language for publish gate
 }
 
 /** Recursively find a node by id */
@@ -77,6 +81,42 @@ function generateId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+/** Detect primary language of a project from its files */
+export function detectProjectLanguage(files: FileNode[]): string {
+  const allFiles: FileNode[] = [];
+  const flatten = (nodes: FileNode[]) => {
+    for (const n of nodes) {
+      if (n.type === 'file') allFiles.push(n);
+      if (n.children) flatten(n.children);
+    }
+  };
+  flatten(files);
+
+  // Priority: package.json means node/react project
+  if (allFiles.find(f => f.name === 'package.json')) {
+    const pkg = allFiles.find(f => f.name === 'package.json');
+    if (pkg?.content) {
+      try {
+        const p = JSON.parse(pkg.content);
+        const deps = { ...p.dependencies, ...p.devDependencies };
+        if (deps['react']) return 'react';
+        if (deps['express']) return 'express';
+        if (deps['next']) return 'next';
+        if (deps['vue']) return 'vue';
+      } catch {}
+    }
+    return 'node';
+  }
+  // Python
+  if (allFiles.find(f => f.name.endsWith('.py'))) return 'python';
+  // C/C++
+  if (allFiles.find(f => f.name.endsWith('.cpp') || f.name.endsWith('.cc'))) return 'cpp';
+  if (allFiles.find(f => f.name.endsWith('.c'))) return 'c';
+  // Static web
+  if (allFiles.find(f => f.name.endsWith('.html'))) return 'html';
+  return 'plaintext';
+}
+
 export function useWorkspace() {
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
@@ -94,7 +134,7 @@ export function useWorkspace() {
         const legacyWorkspace = await get<FileNode[]>(LEGACY_STORAGE_KEY);
         if (legacyWorkspace && (!projs || projs.length === 0)) {
           const id = generateId('proj');
-          projs = [{ id, name: 'Legacy Project', lastOpened: Date.now() }];
+          projs = [{ id, name: 'Legacy Project', lastOpened: Date.now(), createdAt: Date.now() }];
           await set(WORKSPACE_PREFIX + id, legacyWorkspace);
           await set(PROJECTS_KEY, projs);
           activeId = id;
@@ -125,13 +165,21 @@ export function useWorkspace() {
     return () => { unmounted = true; };
   }, []);
 
-  const saveTimeoutRef = useRef<any>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
+  }, []);
+
   const saveWorkspace = useCallback((updated: FileNode[], pid = activeProjectId) => {
     if (!pid) return;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
       set(WORKSPACE_PREFIX + pid, updated).catch(err => console.error('Failed to save to IndexedDB', err));
-    }, 1000);
+    }, 800);
   }, [activeProjectId]);
 
   const switchProject = useCallback(async (id: string) => {
@@ -158,17 +206,25 @@ export function useWorkspace() {
     });
   }, []);
 
+  const toggleFavorite = useCallback(async (id: string) => {
+    setProjects(prev => {
+      const next = prev.map(p => p.id === id ? { ...p, isFavorite: !p.isFavorite } : p);
+      set(PROJECTS_KEY, next).catch(console.error);
+      return next;
+    });
+  }, []);
+
   const copyProject = useCallback(async (id: string) => {
     const projToCopy = projects.find(p => p.id === id);
     if (!projToCopy) return;
 
     const sourceFiles = await get<FileNode[]>(WORKSPACE_PREFIX + id);
     const newId = generateId('proj');
-    const newName = `${projToCopy.name} - Copy`;
+    const newName = `${projToCopy.name} — Copy`;
 
     await set(WORKSPACE_PREFIX + newId, sourceFiles || []);
     setProjects(prev => {
-      const next = [...prev, { id: newId, name: newName, lastOpened: Date.now() }];
+      const next = [...prev, { id: newId, name: newName, lastOpened: Date.now(), createdAt: Date.now() }];
       set(PROJECTS_KEY, next).catch(console.error);
       return next;
     });
@@ -177,9 +233,10 @@ export function useWorkspace() {
     await switchProject(newId);
   }, [projects, switchProject]);
 
-  const createProject = useCallback(async (name: string, nodes: FileNode[]) => {
+  const createProject = useCallback(async (name: string, nodes: FileNode[], language?: string) => {
     const id = generateId('proj');
-    const newProj: ProjectMeta = { id, name, lastOpened: Date.now() };
+    const detectedLang = language || detectProjectLanguage(nodes);
+    const newProj: ProjectMeta = { id, name, lastOpened: Date.now(), createdAt: Date.now(), language: detectedLang };
     
     setProjects(prev => {
       const next = [...prev, newProj];
@@ -193,15 +250,24 @@ export function useWorkspace() {
   }, [switchProject]);
 
   const deleteProject = useCallback(async (id: string) => {
+    // ✅ FIX: Remove workspace data from IndexedDB to prevent ghost files
+    try {
+      await del(WORKSPACE_PREFIX + id);
+    } catch (err) {
+      console.error('Failed to delete workspace data for project', id, err);
+    }
+
     setProjects(prev => {
       const next = prev.filter(p => p.id !== id);
       set(PROJECTS_KEY, next).catch(console.error);
       return next;
     });
+
     if (activeProjectId === id) {
       setActiveProjectId(null);
-      await set(ACTIVE_PROJECT_KEY, null);
       setFiles([]);
+      // ✅ FIX: Clear active project key, don't set to null (causes issues on read)
+      await del(ACTIVE_PROJECT_KEY);
     }
   }, [activeProjectId]);
 
@@ -259,6 +325,8 @@ export function useWorkspace() {
 
   const deleteFile = useCallback((id: string) => {
     setFiles(prev => {
+      const path = findNodePath(prev, id);
+      if (path) fsSyncService.markDeleted(path);
       const updated = deleteNode(prev, id);
       saveWorkspace(updated);
       return updated;
@@ -356,9 +424,21 @@ export function useWorkspace() {
       projName = `${templateName}-${counter++}`;
     }
     
-    const id = await createProject(projName, nodes);
+    const id = await createProject(projName, nodes, type === 'empty' ? 'html' : type);
     return { id, projName, type, needsInstall };
   }, [createProject, projects]);
+
+  // Update project language when files change
+  const updateProjectLanguage = useCallback((id: string, files: FileNode[]) => {
+    const lang = detectProjectLanguage(files);
+    setProjects(prev => {
+      const current = prev.find(p => p.id === id);
+      if (!current || current.language === lang) return prev;
+      const next = prev.map(p => p.id === id ? { ...p, language: lang } : p);
+      set(PROJECTS_KEY, next).catch(console.error);
+      return next;
+    });
+  }, []);
 
   return {
     isReady,
@@ -379,6 +459,8 @@ export function useWorkspace() {
     createProject,
     renameProject,
     copyProject,
+    toggleFavorite,
+    updateProjectLanguage,
     setWorkspaceFiles: useCallback((newFiles: FileNode[]) => {
       setFiles(newFiles);
       saveWorkspace(newFiles);

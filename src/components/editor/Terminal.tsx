@@ -12,6 +12,7 @@ import { processManager } from '@/lib/processManager';
 export interface TerminalHandle {
   runCode: (language: string, code: string) => void;
   execute: (cmd: string) => void;
+  clear: () => void;
 }
 
 interface TerminalProps {
@@ -198,65 +199,23 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ onClose, ma
         writer.write(cmd + '\r');
       }
     },
+    clear: () => {
+      xtermRef.current?.clear();
+    }
   }));
-
-  const handleClear = () => {
-    xtermRef.current?.clear();
-  };
 
   return (
     <div className="flex flex-col h-full font-code bg-editor-bg">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 flex-shrink-0 bg-editor-panel border-b border-editor-border" style={{ height: 32 }}>
-        <div className="flex items-center gap-2">
-          <TerminalSquare className="w-3.5 h-3.5 text-blue-400" />
-          <span className="text-xs font-medium text-slate-400">Terminal</span>
-          {isBooting && <span className="text-xs text-yellow-500 animate-pulse">Booting container...</span>}
-        </div>
-        
-        <div className="flex items-center gap-2">
-          {/* Quick Action Buttons */}
-          <div className="flex items-center bg-editor-bg border border-editor-border rounded p-0.5">
-            <button
-              onClick={() => writerRef.current?.write('npm run dev\r')}
-              className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-green-400 hover:bg-green-500/10 rounded transition-colors"
-              title="Run 'npm run dev'"
-            >
-              <Play className="w-3 h-3" /> Dev
-            </button>
-            <div className="w-px h-3 bg-editor-border mx-0.5" />
-            <button
-              onClick={() => writerRef.current?.write('npm run build\r')}
-              className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-blue-400 hover:bg-blue-500/10 rounded transition-colors"
-              title="Run 'npm run build'"
-            >
-              <Code2 className="w-3 h-3" /> Build
-            </button>
-            <div className="w-px h-3 bg-editor-border mx-0.5" />
-            <button
-              onClick={() => writerRef.current?.write('help\r')}
-              className="flex items-center gap-1 px-2 py-0.5 text-[10px] text-purple-400 hover:bg-purple-500/10 rounded transition-colors"
-              title="Help Menu"
-            >
-              <HelpCircle className="w-3 h-3" /> Help
-            </button>
-          </div>
-
-          <div className="w-px h-4 bg-editor-border mx-1" />
-
-          <button onClick={handleClear} className="p-1 rounded transition-fast text-slate-500 hover:text-slate-300" title="Clear">
-            <Trash2 className="w-3 h-3" />
-          </button>
-          {onClose && (
-            <button onClick={onClose} className="p-1 rounded transition-fast text-slate-500 hover:text-slate-300" title="Close">
-              <X className="w-3 h-3" />
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Terminal Output */}
-      <div className="flex-1 overflow-hidden p-2" ref={terminalRef} />
+      <div className="flex-1 overflow-hidden relative">
+        {isBooting && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-editor-bg/80 backdrop-blur-sm animate-fade-in">
+             <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin mb-3" />
+             <span className="text-xs font-medium text-blue-400 animate-pulse">Booting container...</span>
+          </div>
+        )}
+        <div className="absolute inset-0 p-2" ref={terminalRef} />
+      </div>
     </div>
   );
 });

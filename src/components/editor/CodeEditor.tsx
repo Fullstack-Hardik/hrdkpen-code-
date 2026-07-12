@@ -130,7 +130,11 @@ export const CodeEditor = ({
       });
       themesRegistered = true;
     }
-    monaco.editor.setTheme(settings.theme);
+    
+    // Fallback if not static
+    if (THEMES[settings.theme]) {
+      monaco.editor.setTheme(settings.theme);
+    }
 
     // Emmet
     try {
@@ -298,7 +302,65 @@ export const CodeEditor = ({
 
   // Sync theme when settings change
   useEffect(() => {
-    monacoRef.current?.editor.setTheme(settings.theme);
+    const monaco = monacoRef.current;
+    if (!monaco) return;
+
+    // Helper to convert HSL tuple to HEX for Monaco
+    const hslToHex = (h: number, s: number, l: number) => {
+      l /= 100;
+      const a = s * Math.min(l, 1 - l) / 100;
+      const f = (n: number) => {
+        const k = (n + h / 30) % 12;
+        const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+        return Math.round(255 * color).toString(16).padStart(2, '0');
+      };
+      return `#${f(0)}${f(8)}${f(4)}`;
+    };
+
+    const getHex = (varName: string, fallback: string) => {
+      const val = getComputedStyle(document.body).getPropertyValue(varName).trim();
+      if (!val) return fallback;
+      const parts = val.replace(/%/g, '').split(/[\s,]+/).map(v => parseFloat(v));
+      if (parts.length >= 3 && !isNaN(parts[0])) {
+        return hslToHex(parts[0], parts[1], parts[2]);
+      }
+      return val.startsWith('#') ? val : fallback;
+    };
+
+    // If it's a known static theme, just use it, otherwise generate a dynamic one
+    if (THEMES[settings.theme]) {
+      if (!monaco.editor.getTheme || !monaco._themeInit) {
+        Object.entries(THEMES).forEach(([name, def]) => monaco.editor.defineTheme(name, def));
+        monaco._themeInit = true;
+      }
+      monaco.editor.setTheme(settings.theme);
+    } else {
+      const dynamicName = `dynamic-${settings.theme}`;
+      monaco.editor.defineTheme(dynamicName, {
+        base: settings.theme.includes('light') ? 'vs' : 'vs-dark',
+        inherit: true,
+        rules: [
+          { token: 'keyword',    foreground: getHex('--mauve', '#cba6f7').replace('#', '') },
+          { token: 'string',     foreground: getHex('--green', '#a6e3a1').replace('#', '') },
+          { token: 'number',     foreground: getHex('--peach', '#fab387').replace('#', '') },
+          { token: 'comment',    foreground: getHex('--overlay1', '#585b70').replace('#', ''), fontStyle: 'italic' },
+          { token: 'identifier', foreground: getHex('--sky', '#89dceb').replace('#', '') },
+          { token: 'type',       foreground: getHex('--teal', '#94e2d5').replace('#', '') },
+          { token: 'function',   foreground: getHex('--blue', '#89b4fa').replace('#', '') },
+          { token: 'variable',   foreground: getHex('--text', '#cdd6f4').replace('#', '') },
+        ],
+        colors: {
+          'editor.background':               getHex('--editor-bg', '#1e1e2e'),
+          'editor.foreground':               getHex('--text', '#cdd6f4'),
+          'editorLineNumber.foreground':     getHex('--overlay0', '#45475a'),
+          'editorLineNumber.activeForeground': getHex('--text', '#cdd6f4'),
+          'editor.selectionBackground':      getHex('--surface2', '#585b70') + '66',
+          'editor.lineHighlightBackground':  getHex('--surface0', '#181825'),
+          'editorCursor.foreground':         getHex('--editor-accent', '#f5c2e7'),
+        }
+      });
+      monaco.editor.setTheme(dynamicName);
+    }
   }, [settings.theme]);
 
   const handleRun = useCallback(() => {

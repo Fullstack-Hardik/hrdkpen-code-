@@ -1,19 +1,21 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Folder,
-  FolderOpen,
-  Plus,
-  FolderPlus,
   FilePlus,
+  FolderPlus,
   MoreHorizontal,
   Trash2,
   Edit3,
   Upload,
-  Play,
   Copy,
   RefreshCw,
+  ChevronRight,
+  ChevronDown,
+  Plus,
+  Scissors,
+  Download,
+  Share2
 } from 'lucide-react';
 import { getFileLanguageIcon } from '@/utils/languageIcons';
 import {
@@ -21,6 +23,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
   ContextMenu,
@@ -31,12 +34,7 @@ import {
 } from '@/components/ui/context-menu';
 import type { FileNode } from '@/types';
 
-// Re-export for components that still import from here
 export type { FileNode };
-
-interface _Unused {
-  _unused?: never;
-}
 
 interface FileExplorerProps {
   files: FileNode[];
@@ -49,6 +47,12 @@ interface FileExplorerProps {
   onMove?: (dragId: string, targetFolderId: string | null) => void;
   onLoadTemplate?: (type: 'html' | 'node' | 'express' | 'react' | 'python' | 'c' | 'cpp') => void;
   onSync?: () => void;
+  projectName?: string;
+}
+
+interface CreatingState {
+  parentId: string | null;
+  type: 'file' | 'folder';
 }
 
 export const FileExplorer = ({
@@ -62,191 +66,274 @@ export const FileExplorer = ({
   onMove,
   onLoadTemplate,
   onSync,
+  projectName,
 }: FileExplorerProps) => {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
-  const [creatingFile, setCreatingFile] = useState(false);
-  const [newFileName, setNewFileName] = useState('');
+  const [creating, setCreating] = useState<CreatingState | null>(null);
+  const [newItemName, setNewItemName] = useState('');
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const newItemInputRef = useRef<HTMLInputElement>(null);
 
-  const toggleFolder = (id: string) => {
-    const newExpanded = new Set(expandedFolders);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedFolders(newExpanded);
-  };
+  const toggleFolder = useCallback((id: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
 
-  const getFileIcon = (file: FileNode) => {
-    if (file.type === 'folder') {
-      return expandedFolders.has(file.id) ? 
-        <FolderOpen className="w-4 h-4 text-editor-accent" /> : 
-        <Folder className="w-4 h-4 text-editor-accent" />;
-    }
-    return getFileLanguageIcon(file.name);
-  };
-
-  const canRunFile = (_file: FileNode): boolean => false; // Run handled in editor toolbar
-
-  const startEdit = (file: FileNode) => {
+  const startEdit = useCallback((file: FileNode) => {
     setEditingId(file.id);
     setEditingName(file.name);
-  };
+  }, []);
 
-  const finishEdit = () => {
+  const finishEdit = useCallback(() => {
     if (editingId && editingName.trim()) {
       onFileRename(editingId, editingName.trim());
     }
     setEditingId(null);
     setEditingName('');
-  };
+  }, [editingId, editingName, onFileRename]);
+
+  const startCreating = useCallback((type: 'file' | 'folder', parentId: string | null = null) => {
+    if (parentId) {
+      setExpandedFolders(prev => new Set([...prev, parentId]));
+    }
+    setCreating({ parentId, type });
+    setNewItemName('');
+    setTimeout(() => newItemInputRef.current?.focus(), 50);
+  }, []);
+
+  const finishCreating = useCallback(() => {
+    if (creating && newItemName.trim()) {
+      onFileCreate(newItemName.trim(), creating.type, creating.parentId ?? undefined);
+    }
+    setCreating(null);
+    setNewItemName('');
+  }, [creating, newItemName, onFileCreate]);
 
   const renderFileNode = (file: FileNode, depth = 0) => {
     const isSelected = selectedFileId === file.id;
     const isExpanded = expandedFolders.has(file.id);
-    
+    const isDragTarget = dragOverId === file.id;
+    const isFolder = file.type === 'folder';
+
     return (
-      <div key={file.id}>
+      <div key={file.id} className="select-none">
         <ContextMenu>
           <ContextMenuTrigger>
-            <div 
-              className={`
-                flex items-center gap-2 px-2 py-1 rounded cursor-pointer transition-editor group
-                hover:bg-editor-active-tab
-                ${isSelected ? 'bg-editor-active-tab text-editor-text' : 'text-editor-text-muted'}
-              `}
-              /* Removed manual paddingLeft because we now use nested div margins */
+            <div
+              className={`explorer-item group relative ${isSelected ? 'selected' : ''} ${isDragTarget ? 'ring-1 ring-inset ring-blue-500/50' : ''}`}
+              style={{ paddingLeft: `${depth * 12 + 6}px` }}
               onClick={() => {
-                if (file.type === 'folder') {
+                if (isFolder) {
                   toggleFolder(file.id);
                 } else {
                   onFileSelect(file);
                 }
               }}
               draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData('text/file-id', file.id);
+              onDragStart={e => e.dataTransfer.setData('text/file-id', file.id)}
+              onDragOver={e => {
+                if (isFolder) { e.preventDefault(); e.stopPropagation(); setDragOverId(file.id); }
               }}
-              onDragOver={(e) => {
-                if (file.type === 'folder') {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
+              onDragLeave={() => setDragOverId(null)}
+              onDrop={e => {
+                e.preventDefault(); e.stopPropagation();
+                setDragOverId(null);
                 const dragId = e.dataTransfer.getData('text/file-id');
-                if (!dragId) return;
-                if (file.type === 'folder') onMove?.(dragId, file.id);
+                if (dragId && isFolder) onMove?.(dragId, file.id);
               }}
             >
-              {getFileIcon(file)}
-              
+              {/* Expand arrow for folders */}
+              {isFolder && (
+                <span className="w-3 h-3 flex-shrink-0 text-editor-text-dim mr-0.5">
+                  {isExpanded
+                    ? <ChevronDown className="w-3 h-3" />
+                    : <ChevronRight className="w-3 h-3" />}
+                </span>
+              )}
+
+              {/* Icon */}
+              <span className="flex-shrink-0 w-4 h-4">
+                {isFolder
+                  ? getFileLanguageIcon(file.name, 'w-4 h-4', { isFolder: true, isOpen: isExpanded })
+                  : getFileLanguageIcon(file.name, 'w-4 h-4')}
+              </span>
+
+              {/* Name / Edit input */}
               {editingId === file.id ? (
                 <Input
                   value={editingName}
-                  onChange={(e) => setEditingName(e.target.value)}
+                  onChange={e => setEditingName(e.target.value)}
                   onBlur={finishEdit}
-                  onKeyDown={(e) => {
+                  onKeyDown={e => {
                     if (e.key === 'Enter') finishEdit();
                     if (e.key === 'Escape') setEditingId(null);
                   }}
-                  className="h-6 text-xs bg-editor-panel border-editor-border focus:border-editor-accent"
+                  className="h-5 py-0 px-1 text-xs flex-1 min-w-0 bg-editor-active-tab border-editor-accent"
                   autoFocus
+                  onClick={e => e.stopPropagation()}
                 />
               ) : (
-                <span className="flex-1 text-sm">{file.name}</span>
+                <span className="flex-1 min-w-0 truncate">{file.name}</span>
               )}
-              
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-6 w-6 p-0"
+
+              {/* Hover actions */}
+              {editingId !== file.id && (
+                <div className="flex items-center gap-0.5 ml-auto opacity-0 group-hover:opacity-100 transition-fast pl-1"
+                     onClick={e => e.stopPropagation()}>
+                  {isFolder && (
+                    <button
+                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-editor-active-tab text-editor-text-dim hover:text-editor-text"
+                      onClick={() => startCreating('file', file.id)}
+                      title="New file in folder"
                     >
-                      <MoreHorizontal className="w-3 h-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-40">
-                    <DropdownMenuItem onClick={() => startEdit(file)}>
-                      <Edit3 className="w-3 h-3 mr-2" />
-                      Rename
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => {
-                      const baseName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
-                      const ext = file.name.includes('.') ? file.name.substring(file.name.lastIndexOf('.')) : '';
-                      onFileCreate(`${baseName}_copy${ext}`, file.type, undefined);
-                    }}>
-                      <Copy className="w-3 h-3 mr-2" />
-                      Duplicate
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => onFileDelete(file.id)}
-                      className="text-editor-error"
+                      <FilePlus className="w-3 h-3" />
+                    </button>
+                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="w-5 h-5 flex items-center justify-center rounded hover:bg-editor-active-tab text-editor-text-dim hover:text-editor-text">
+                        <MoreHorizontal className="w-3 h-3" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      className="w-40 text-xs"
+                      style={{ background: 'hsl(var(--crust))', border: '1px solid hsl(var(--surface1))' }}
                     >
-                      <Trash2 className="w-3 h-3 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                      <DropdownMenuItem onClick={() => startEdit(file)} className="gap-2 cursor-pointer text-xs">
+                        <Edit3 className="w-3 h-3" /> Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="gap-2 cursor-pointer text-xs"
+                        onClick={() => {
+                          const base = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
+                          const ext = file.name.includes('.') ? file.name.substring(file.name.lastIndexOf('.')) : '';
+                          onFileCreate(`${base}_copy${ext}`, file.type, undefined);
+                        }}
+                      >
+                        <Copy className="w-3 h-3" /> Duplicate
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="gap-2 cursor-pointer text-xs" onClick={() => {}}>
+                        <Scissors className="w-3 h-3" /> Cut
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="gap-2 cursor-pointer text-xs" onClick={() => {
+                        if (file.content) {
+                          const blob = new Blob([file.content], { type: 'text/plain' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = file.name;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }
+                      }}>
+                        <Download className="w-3 h-3" /> Download
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="gap-2 cursor-pointer text-xs" onClick={() => {}}>
+                        <Share2 className="w-3 h-3" /> Share
+                      </DropdownMenuItem>
+                      {isFolder && (
+                        <>
+                          <DropdownMenuSeparator className="bg-editor-border" />
+                          <DropdownMenuItem className="gap-2 cursor-pointer text-xs" onClick={() => startCreating('file', file.id)}>
+                            <FilePlus className="w-3 h-3" /> New File
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="gap-2 cursor-pointer text-xs" onClick={() => startCreating('folder', file.id)}>
+                            <FolderPlus className="w-3 h-3" /> New Folder
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      <DropdownMenuSeparator className="bg-editor-border" />
+                      <DropdownMenuItem
+                        onClick={() => onFileDelete(file.id)}
+                        className="gap-2 cursor-pointer text-xs text-red-400 focus:text-red-400 focus:bg-red-500/10"
+                      >
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
             </div>
           </ContextMenuTrigger>
 
-          <ContextMenuContent className="w-40 bg-editor-panel border-editor-border text-editor-text">
-            {file.type === 'folder' && (
+          <ContextMenuContent
+            className="w-44 text-xs animate-scale-in"
+            style={{ background: 'hsl(var(--crust))', border: '1px solid hsl(var(--surface1))' }}
+          >
+            {isFolder && (
               <>
-                <ContextMenuItem onClick={() => {
-                  setCreatingFile(true);
-                  setNewFileName('New File');
-                  // TODO: pass folder context if needed, currently onFileCreate needs modifying or we handle globally
-                  // The existing implementation for global 'new file' works, but we can pass `file.id` as parentId
-                  onFileCreate('new_file', 'file', file.id);
-                }}>
-                  <Plus className="w-3 h-3 mr-2" />
-                  New File
+                <ContextMenuItem onClick={() => startCreating('file', file.id)} className="gap-2 text-xs cursor-pointer">
+                  <FilePlus className="w-3 h-3" /> New File
                 </ContextMenuItem>
-                <ContextMenuItem onClick={() => {
-                  onFileCreate('new_folder', 'folder', file.id);
-                }}>
-                  <FolderPlus className="w-3 h-3 mr-2" />
-                  New Folder
+                <ContextMenuItem onClick={() => startCreating('folder', file.id)} className="gap-2 text-xs cursor-pointer">
+                  <FolderPlus className="w-3 h-3" /> New Folder
                 </ContextMenuItem>
                 <ContextMenuSeparator className="bg-editor-border" />
               </>
             )}
-            <ContextMenuItem onClick={() => startEdit(file)}>
-              <Edit3 className="w-3 h-3 mr-2" />
-              Rename
+            <ContextMenuItem onClick={() => startEdit(file)} className="gap-2 text-xs cursor-pointer">
+              <Edit3 className="w-3 h-3" /> Rename
             </ContextMenuItem>
-            <ContextMenuItem onClick={() => {
-              const baseName = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
-              const ext = file.name.includes('.') ? file.name.substring(file.name.lastIndexOf('.')) : '';
-              onFileCreate(`${baseName}_copy${ext}`, file.type, undefined);
-            }}>
-              <Copy className="w-3 h-3 mr-2" />
-              Duplicate
+            <ContextMenuItem
+              className="gap-2 text-xs cursor-pointer"
+              onClick={() => {
+                const base = file.name.includes('.') ? file.name.substring(0, file.name.lastIndexOf('.')) : file.name;
+                const ext = file.name.includes('.') ? file.name.substring(file.name.lastIndexOf('.')) : '';
+                onFileCreate(`${base}_copy${ext}`, file.type, undefined);
+              }}
+            >
+              <Copy className="w-3 h-3" /> Duplicate
             </ContextMenuItem>
             <ContextMenuSeparator className="bg-editor-border" />
-            <ContextMenuItem 
+            <ContextMenuItem
               onClick={() => onFileDelete(file.id)}
-              className="text-editor-error focus:text-editor-error focus:bg-editor-error/10"
+              className="gap-2 text-xs cursor-pointer text-red-400 focus:text-red-400 focus:bg-red-500/10"
             >
-              <Trash2 className="w-3 h-3 mr-2" />
-              Delete
+              <Trash2 className="w-3 h-3" /> Delete
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
-        
-        {file.type === 'folder' && isExpanded && file.children && (
-          <div className="ml-3 pl-1 border-l border-editor-border/30">
-            {file.children.map(child => renderFileNode(child, depth + 1))}
+
+        {/* Children */}
+        {isFolder && isExpanded && (
+          <div>
+            {file.children?.map(child => renderFileNode(child, depth + 1))}
+            {/* Inline "new item" input inside this folder */}
+            {creating?.parentId === file.id && (
+              <div
+                className="flex items-center gap-1.5 py-[3px] px-2"
+                style={{ paddingLeft: `${(depth + 1) * 12 + 6}px` }}
+              >
+                <span className="w-4 h-4 flex-shrink-0">
+                  {creating.type === 'folder'
+                    ? getFileLanguageIcon('new-folder', 'w-4 h-4', { isFolder: true, isOpen: false })
+                    : getFileLanguageIcon('new-file', 'w-4 h-4')}
+                </span>
+                <Input
+                  ref={newItemInputRef}
+                  value={newItemName}
+                  onChange={e => setNewItemName(e.target.value)}
+                  onBlur={finishCreating}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') finishCreating();
+                    if (e.key === 'Escape') setCreating(null);
+                  }}
+                  placeholder={creating.type === 'folder' ? 'folder-name' : 'filename.ext'}
+                  className="h-5 py-0 px-1 text-xs flex-1 bg-editor-active-tab border-editor-accent"
+                  autoFocus
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -256,175 +343,216 @@ export const FileExplorer = ({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <div className="editor-sidebar h-full border-r border-border flex flex-col">
-          {/* File Explorer Header */}
-          <div className="flex items-center justify-between p-3 border-b border-border flex-shrink-0">
-            <h3 className="text-sm font-semibold text-editor-text">Explorer</h3>
-            <div className="flex gap-1">
-              {onImportFolder && (
-                <input
-                  ref={folderInputRef}
-                  type="file"
-                  {...({ webkitdirectory: "true" } as any)}
-                  multiple
-                  className="hidden"
-                  onChange={async (e) => {
-                    const files = Array.from(e.target.files || []);
-                    const reads = await Promise.all(
-                      files.map((f: any) =>
-                        new Promise<{ path: string; content: string }>((resolve) => {
-                          const reader = new FileReader();
-                          reader.onload = () => resolve({ path: (f as any).webkitRelativePath || f.name, content: String(reader.result || '') });
-                          reader.readAsText(f);
-                        })
-                      )
-                    );
-                    onImportFolder(reads);
-                    e.currentTarget.value = '';
-                  }}
-                />
+        <div
+          className="flex flex-col h-full"
+          onDragOver={e => e.preventDefault()}
+          onDrop={e => {
+            e.preventDefault();
+            const dragId = e.dataTransfer.getData('text/file-id');
+            if (dragId) onMove?.(dragId, null);
+          }}
+        >
+          {/* Hidden folder import input */}
+          {onImportFolder && (
+            <input
+              ref={folderInputRef}
+              type="file"
+              {...({ webkitdirectory: 'true' } as any)}
+              multiple
+              className="hidden"
+              onChange={async e => {
+                const fileList = Array.from(e.target.files || []);
+                const reads = await Promise.all(
+                  fileList.map(f =>
+                    new Promise<{ path: string; content: string }>(resolve => {
+                      const reader = new FileReader();
+                      reader.onload = () =>
+                        resolve({ path: (f as any).webkitRelativePath || f.name, content: String(reader.result || '') });
+                      reader.readAsText(f);
+                    })
+                  )
+                );
+                onImportFolder(reads);
+                e.currentTarget.value = '';
+              }}
+            />
+          )}
+
+          {/* Explorer Header */}
+          <div
+            className="flex items-center justify-between px-3 py-2 border-b border-editor-border flex-shrink-0"
+            style={{ minHeight: 36 }}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {projectName && (
+                <span
+                  className="text-[11px] font-semibold uppercase tracking-widest truncate"
+                  style={{ color: 'hsl(var(--overlay2))' }}
+                  title={projectName}
+                >
+                  {projectName}
+                </span>
               )}
+            </div>
+            <div className="flex items-center gap-0.5 flex-shrink-0">
               <Button
-                variant="ghost"
-                size="icon"
-                className="w-6 h-6 hover:bg-editor-active-tab text-editor-text-muted hover:text-white"
-                onClick={() => setCreatingFile(true)}
+                variant="ghost" size="icon"
+                className="w-6 h-6 text-editor-text-muted hover:text-white hover:bg-editor-active-tab"
+                onClick={() => startCreating('file', null)}
                 title="New File"
               >
                 <FilePlus className="w-3.5 h-3.5" />
               </Button>
               <Button
-                variant="ghost"
-                size="icon"
-                className="w-6 h-6 hover:bg-editor-active-tab text-editor-text-muted hover:text-white"
-                onClick={() => onFileCreate('new-folder', 'folder')}
+                variant="ghost" size="icon"
+                className="w-6 h-6 text-editor-text-muted hover:text-white hover:bg-editor-active-tab"
+                onClick={() => startCreating('folder', null)}
                 title="New Folder"
               >
                 <FolderPlus className="w-3.5 h-3.5" />
               </Button>
               {onSync && (
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="w-6 h-6 hover:bg-editor-active-tab text-editor-text-muted hover:text-white"
+                  variant="ghost" size="icon"
+                  className="w-6 h-6 text-editor-text-muted hover:text-white hover:bg-editor-active-tab"
                   onClick={onSync}
                   title="Sync from WebContainer"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                 </Button>
               )}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="w-6 h-6 hover:bg-editor-active-tab text-yellow-500 hover:text-yellow-400"
-                    title="Create from Template"
+              {/* Templates dropdown — single clean menu, no duplicates */}
+              {onLoadTemplate && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost" size="icon"
+                      className="w-6 h-6 text-yellow-500 hover:text-yellow-400 hover:bg-editor-active-tab"
+                      title="New from Template"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-48 text-xs animate-scale-in"
+                    style={{ background: 'hsl(var(--crust))', border: '1px solid hsl(var(--surface1))' }}
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48 bg-editor-panel border-editor-border text-editor-text">
-                  <DropdownMenuItem onClick={() => setCreatingFile(true)} className="hover:bg-editor-active-tab cursor-pointer text-xs focus:bg-editor-active-tab focus:text-white">
-                    <Plus className="w-3.5 h-3.5 mr-2" />
-                    New File
-                  </DropdownMenuItem>
-                  {onLoadTemplate && (
-                    <DropdownMenuItem onClick={() => onLoadTemplate('html')} className="hover:bg-editor-active-tab cursor-pointer text-xs focus:bg-editor-active-tab focus:text-white">
-                      <FolderPlus className="w-3.5 h-3.5 mr-2 text-orange-400" />
-                      HTML Template
+                    <div className="px-2 py-1.5 text-[10px] uppercase tracking-widest text-editor-text-dim">Templates</div>
+                    <DropdownMenuItem onClick={() => onLoadTemplate('html')} className="gap-2 text-xs cursor-pointer">
+                      <span className="w-3.5 h-3.5 flex-shrink-0">{getFileLanguageIcon('index.html', 'w-3.5 h-3.5')}</span>
+                      HTML / CSS / JS
                     </DropdownMenuItem>
-                  )}
-                  {onLoadTemplate && (
-                    <DropdownMenuItem onClick={() => onLoadTemplate('react')} className="hover:bg-editor-active-tab cursor-pointer text-xs focus:bg-editor-active-tab focus:text-white">
-                      <FolderPlus className="w-3.5 h-3.5 mr-2 text-cyan-400" />
-                      React + Vite Project
+                    <DropdownMenuItem onClick={() => onLoadTemplate('react')} className="gap-2 text-xs cursor-pointer">
+                      <span className="w-3.5 h-3.5 flex-shrink-0">{getFileLanguageIcon('App.jsx', 'w-3.5 h-3.5')}</span>
+                      React + Vite
                     </DropdownMenuItem>
-                  )}
-                  {onLoadTemplate && (
-                    <DropdownMenuItem onClick={() => onLoadTemplate('express')} className="hover:bg-editor-active-tab cursor-pointer text-xs focus:bg-editor-active-tab focus:text-white">
-                      <FolderPlus className="w-3.5 h-3.5 mr-2 text-green-400" />
+                    <DropdownMenuItem onClick={() => onLoadTemplate('express')} className="gap-2 text-xs cursor-pointer">
+                      <span className="w-3.5 h-3.5 flex-shrink-0">{getFileLanguageIcon('server.js', 'w-3.5 h-3.5')}</span>
                       Express API Server
                     </DropdownMenuItem>
-                  )}
-                  {onLoadTemplate && (
-                    <DropdownMenuItem onClick={() => onLoadTemplate('node')} className="hover:bg-editor-active-tab cursor-pointer text-xs focus:bg-editor-active-tab focus:text-white">
-                      <FolderPlus className="w-3.5 h-3.5 mr-2 text-green-500" />
+                    <DropdownMenuItem onClick={() => onLoadTemplate('node')} className="gap-2 text-xs cursor-pointer">
+                      <span className="w-3.5 h-3.5 flex-shrink-0">{getFileLanguageIcon('index.js', 'w-3.5 h-3.5')}</span>
                       Node.js Script
                     </DropdownMenuItem>
-                  )}
-                  {onImportFolder && (
-                    <>
-                      <DropdownMenuItem onClick={() => onLoadTemplate('node')}>Node.js</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onLoadTemplate('express')}>Express</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onLoadTemplate('react')}>React (Vite)</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onLoadTemplate('python')}>Python</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onLoadTemplate('c')}>C</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onLoadTemplate('cpp')}>C++</DropdownMenuItem>
-                    </>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                    <DropdownMenuItem onClick={() => onLoadTemplate('python')} className="gap-2 text-xs cursor-pointer">
+                      <span className="w-3.5 h-3.5 flex-shrink-0">{getFileLanguageIcon('main.py', 'w-3.5 h-3.5')}</span>
+                      Python
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onLoadTemplate('c')} className="gap-2 text-xs cursor-pointer">
+                      <span className="w-3.5 h-3.5 flex-shrink-0">{getFileLanguageIcon('main.c', 'w-3.5 h-3.5')}</span>
+                      C
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onLoadTemplate('cpp')} className="gap-2 text-xs cursor-pointer">
+                      <span className="w-3.5 h-3.5 flex-shrink-0">{getFileLanguageIcon('main.cpp', 'w-3.5 h-3.5')}</span>
+                      C++
+                    </DropdownMenuItem>
+                    {onImportFolder && (
+                      <>
+                        <div className="px-2 py-1.5 text-[10px] uppercase tracking-widest text-editor-text-dim mt-1">Import</div>
+                        <DropdownMenuItem onClick={() => folderInputRef.current?.click()} className="gap-2 text-xs cursor-pointer">
+                          <Upload className="w-3.5 h-3.5" /> Import Folder
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
-          
-          <div className="flex-1 overflow-y-auto p-2 space-y-0.5 pb-20">
-            {files.map(file => renderFileNode(file))}
-            
-            {creatingFile && (
-              <div className="flex items-center gap-2 px-2 py-1 ml-4 mt-1">
-                <FileIcon />
+
+          {/* File tree */}
+          <div className="flex-1 overflow-y-auto py-1 custom-scrollbar">
+            <div className="px-1 space-y-0">
+              {files.map(file => renderFileNode(file))}
+            </div>
+
+            {/* Root-level new item input */}
+            {creating?.parentId === null && (
+              <div className="flex items-center gap-1.5 py-[3px] px-2 mx-1 mt-0.5">
+                <span className="w-4 h-4 flex-shrink-0">
+                  {creating.type === 'folder'
+                    ? getFileLanguageIcon('new-folder', 'w-4 h-4', { isFolder: true, isOpen: false })
+                    : getFileLanguageIcon('new-file', 'w-4 h-4')}
+                </span>
                 <Input
-                  value={newFileName}
-                  onChange={e => setNewFileName(e.target.value)}
-                  onBlur={() => {
-                    if (newFileName.trim()) {
-                      onFileCreate(newFileName.trim(), 'file');
-                    }
-                    setCreatingFile(false);
-                    setNewFileName('');
-                  }}
+                  ref={newItemInputRef}
+                  value={newItemName}
+                  onChange={e => setNewItemName(e.target.value)}
+                  onBlur={finishCreating}
                   onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      if (newFileName.trim()) {
-                        onFileCreate(newFileName.trim(), 'file');
-                      }
-                      setCreatingFile(false);
-                      setNewFileName('');
-                    }
-                    if (e.key === 'Escape') {
-                      setCreatingFile(false);
-                      setNewFileName('');
-                    }
+                    if (e.key === 'Enter') finishCreating();
+                    if (e.key === 'Escape') setCreating(null);
                   }}
-                  className="h-6 text-xs bg-editor-panel border-editor-border focus:border-editor-accent"
+                  placeholder={creating.type === 'folder' ? 'folder-name' : 'filename.ext'}
+                  className="h-5 py-0 px-1 text-xs flex-1 bg-editor-active-tab border-editor-accent"
                   autoFocus
                 />
+              </div>
+            )}
+
+            {files.length === 0 && !creating && (
+              <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+                  style={{ background: 'hsl(var(--surface0))' }}
+                >
+                  <FilePlus className="w-5 h-5 text-editor-text-dim" />
+                </div>
+                <p className="text-xs text-editor-text-dim">No files yet</p>
+                <button
+                  onClick={() => startCreating('file', null)}
+                  className="mt-2 text-xs text-blue-400 hover:text-blue-300 transition-fast"
+                >
+                  Create a file
+                </button>
               </div>
             )}
           </div>
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-48 bg-editor-panel border-editor-border text-editor-text">
-        <ContextMenuItem onClick={() => setCreatingFile(true)}>
-          <Plus className="w-3.5 h-3.5 mr-2" /> New File
+
+      <ContextMenuContent
+        className="w-44 text-xs animate-scale-in"
+        style={{ background: 'hsl(var(--crust))', border: '1px solid hsl(var(--surface1))' }}
+      >
+        <ContextMenuItem onClick={() => startCreating('file', null)} className="gap-2 text-xs cursor-pointer">
+          <FilePlus className="w-3 h-3" /> New File
         </ContextMenuItem>
-        <ContextMenuItem onClick={() => onFileCreate('new-folder', 'folder')}>
-          <FolderPlus className="w-3.5 h-3.5 mr-2" /> New Folder
+        <ContextMenuItem onClick={() => startCreating('folder', null)} className="gap-2 text-xs cursor-pointer">
+          <FolderPlus className="w-3 h-3" /> New Folder
         </ContextMenuItem>
         {onImportFolder && (
-          <ContextMenuItem onClick={() => folderInputRef.current?.click()}>
-            <Upload className="w-3.5 h-3.5 mr-2" /> Import Folder
+          <ContextMenuItem onClick={() => folderInputRef.current?.click()} className="gap-2 text-xs cursor-pointer">
+            <Upload className="w-3 h-3" /> Import Folder
+          </ContextMenuItem>
+        )}
+        {onSync && (
+          <ContextMenuItem onClick={onSync} className="gap-2 text-xs cursor-pointer">
+            <RefreshCw className="w-3 h-3" /> Sync Files
           </ContextMenuItem>
         )}
       </ContextMenuContent>
     </ContextMenu>
   );
 };
-
-const FileIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-editor-text-muted">
-    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-    <polyline points="14 2 14 8 20 8" />
-  </svg>
-);

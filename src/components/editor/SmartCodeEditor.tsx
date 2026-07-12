@@ -8,7 +8,7 @@ import {
   ContextMenuTrigger,
   ContextMenuSeparator,
 } from '@/components/ui/context-menu';
-import { X, Monitor, Bot, Search, Minus, Square, BookOpen, Plus, Image as ImageIcon, PenTool, FolderTree, GraduationCap, Copy, Check, Brain, Loader2 } from 'lucide-react';
+import { X, Monitor, Bot, Search, Minus, Square, BookOpen, Plus, Image as ImageIcon, PenTool, FolderTree, GraduationCap, Copy, Check, Brain, Loader2, Trash2, HelpCircle, Play, Activity } from 'lucide-react';
 
 import { SystemHeader } from './SystemHeader';
 import { FileExplorer } from './FileExplorer';
@@ -28,12 +28,14 @@ import { IframePanel } from '@/components/panels/IframePanel';
 import { AssetLibrary } from '@/components/assets/AssetLibrary';
 import { CommandPalette } from '@/components/layout/CommandPalette';
 import { BootstrapScreen } from '@/components/layout/BootstrapScreen';
+import { DoctorKitBadge } from '@/components/layout/DoctorKitBadge';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { useSettings } from '@/hooks/use-settings';
+import { useDoctorKit } from '@/hooks/useDoctorKit';
 import { getLanguageFromFilename, PREVIEW_LANGUAGES, LANGUAGE_TEMPLATES } from '@/lib/languages';
 import { getFileLanguageIcon } from '@/utils/languageIcons';
 import { executeJavaScript, executePython, executeCompiled } from '@/lib/execution';
-import { getWebContainer, readWebContainerFS } from '@/lib/webcontainer';
+import { getWebContainer, clearWebContainerFS } from '@/lib/webcontainer';
 import { downloadProject, publishProject } from '@/lib/publish';
 import { useToast } from '@/hooks/use-toast';
 import type { FileSystemTree } from '@webcontainer/api';
@@ -44,6 +46,7 @@ import type { FileNode } from '@/types';
 
 // ─────────────────── Types ───────────────────
 import { DocsViewer } from '@/components/docs/DocsViewer';
+import { HelpCenter } from '@/components/docs/HelpCenter';
 
 export type BottomPanel = 'terminal' | 'output' | 'problems' | 'inspect' | 'help';
 type RightPanel  = 'preview' | 'ai' | 'docs' | 'assets' | null;
@@ -69,11 +72,17 @@ export const SmartCodeEditor = () => {
   const [openTabs, setOpenTabs]           = useState<FileNode[]>([]);
   const [activeTabId, setActiveTabId]     = useState<string>('');
   const [rightPanel, setRightPanel] = useState<RightPanel>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const [showBootstrap, setShowBootstrap] = useState(false);
+  const [settingsCategory, setSettingsCategory] = useState<'appearance' | 'editor' | 'terminal' | 'preview' | 'extensions' | 'diagnostics'>('appearance');
   const [bottomPanelOpen, setBottomPanelOpen] = useState(false);
   const [bottomTab, setBottomTab]         = useState<BottomPanel>('terminal');
   const [searchQuery, setSearchQuery]     = useState('');
   const [isScaffolding, setIsScaffolding] = useState(false);
+  const [isFullscreen, setIsFullscreen]   = useState(false);
+  const [isZenMode, setIsZenMode]         = useState(false);
+
+  const doctorKit = useDoctorKit();
 
   // Editor diagnostics
   const [problems, setProblems]   = useState<Problem[]>([]);
@@ -195,26 +204,40 @@ export const SmartCodeEditor = () => {
             }
             return tree;
           };
+          await clearWebContainerFS();
           await wc.mount(buildTree(workspace.files));
           lastMountedProjectRef.current = workspace.activeProjectId;
-          
-          // Start watching FS changes
-          await fsSyncService.startWatching();
 
           // Restored project boot logic
           const pkgFile = workspace.files.find(f => f.name === 'package.json');
           if (pkgFile && pkgFile.content) {
             try {
               const pkg = JSON.parse(pkgFile.content);
-              // Run npm install to restore node_modules, then start the dev server
-              const p = await processManager.spawn(workspace.activeProjectId, 'npm', ['install', '--no-audit', '--no-fund', '--legacy-peer-deps']);
-              p.exit.then(() => {
+              // ✅ FIX: Check if node_modules already exists before running npm install
+              // This avoids unnecessary reinstall within the same session
+              let hasNodeModules = false;
+              try {
+                await wc.fs.readdir('/node_modules');
+                hasNodeModules = true;
+              } catch { /* node_modules doesn't exist */ }
+
+              if (!hasNodeModules) {
+                const p = await processManager.spawn(workspace.activeProjectId, 'npm', ['install', '--no-audit', '--no-fund', '--legacy-peer-deps']);
+                p.exit.then(() => {
+                  if (pkg.scripts && pkg.scripts.dev) {
+                    processManager.spawn(workspace.activeProjectId, 'npm', ['run', 'dev']).catch(console.error);
+                  } else if (pkg.scripts && pkg.scripts.start) {
+                    processManager.spawn(workspace.activeProjectId, 'npm', ['start']).catch(console.error);
+                  }
+                });
+              } else {
+                // node_modules exists: just run dev server
                 if (pkg.scripts && pkg.scripts.dev) {
                   processManager.spawn(workspace.activeProjectId, 'npm', ['run', 'dev']).catch(console.error);
                 } else if (pkg.scripts && pkg.scripts.start) {
                   processManager.spawn(workspace.activeProjectId, 'npm', ['start']).catch(console.error);
                 }
-              });
+              }
             } catch (e) {
               console.error('Failed to parse package.json on boot', e);
             }
@@ -335,46 +358,112 @@ http.createServer((req, res) => {
     });
   }, [activeTabId]);
 
-  const contentChangeTimeoutRef = useRef<any>(null);
-
   const handleContentChange = useCallback((content: string) => {
     if (!activeTabId) return;
     
-    // We intentionally DO NOT update openTabs locally here to prevent full React re-renders on every keystroke.
-    // Monaco Editor manages its own fast internal state.
+    // Immediately update UI state
+    workspace.updateFileContent(activeTabId, content);
     
-    // Debounce the heavy global workspace tree update and WebContainer FS write
-    if (contentChangeTimeoutRef.current) clearTimeout(contentChangeTimeoutRef.current);
-    contentChangeTimeoutRef.current = setTimeout(() => {
-      workspace.updateFileContent(activeTabId, content);
-      
-      // Dynamically write to WebContainer FS to trigger HMR efficiently
-      const filePath = workspace.findFilePath(activeTabId);
-      if (filePath) {
-        getWebContainer().then(wc => {
-          let finalContent = content;
-          if (inspectEnabled && (filePath === 'index.html' || filePath.endsWith('.html'))) {
-            finalContent = content.replace(/<head([^>]*)>/i, `<head$1><script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init({defaults:{displaySize:100,transparency:1,theme:'Dark'}}); eruda.show(); eruda._entryBtn.hide();</script>`);
-          }
-          wc.fs.writeFile(`/${filePath}`, finalContent).catch(err => {
-            console.error('Failed to write file to WebContainer:', err);
-          });
+    // Immediately write to WebContainer to prevent polling race conditions
+    const filePath = workspace.findFilePath(activeTabId);
+    if (filePath) {
+      getWebContainer().then(wc => {
+        let finalContent = content;
+        if (inspectEnabled && (filePath === 'index.html' || filePath.endsWith('.html'))) {
+          finalContent = content.replace(/<head([^>]*)>/i, `<head$1><script src="https://cdn.jsdelivr.net/npm/eruda"></script><script>eruda.init({defaults:{displaySize:100,transparency:1,theme:'Dark'}}); eruda.show(); eruda._entryBtn.hide();</script>`);
+        }
+        wc.fs.writeFile(`/${filePath}`, finalContent).catch(err => {
+          console.error('Failed to write file to WebContainer:', err);
         });
-      }
-    }, 400);
+      });
+    }
   }, [activeTabId, workspace, inspectEnabled]);
 
+  const handleFileCreate = useCallback((name: string, type: 'file' | 'folder', parentId?: string) => {
+    let parentPath = '';
+    if (parentId) {
+      parentPath = workspace.findFilePath(parentId) || '';
+    }
+    const path = parentPath ? `${parentPath}/${name}` : name;
+
+    workspace.createFile(name, type, parentId);
+    
+    fsSyncService.unmarkDeleted(path);
+    getWebContainer().then(wc => {
+      if (type === 'file') wc.fs.writeFile(`/${path}`, '').catch(console.error);
+      else wc.fs.mkdir(`/${path}`).catch(console.error);
+    });
+  }, [workspace]);
+
   const handleFileRename = useCallback((id: string, name: string) => {
+    const oldPath = workspace.findFilePath(id);
     workspace.renameFile(id, name);
+    setTimeout(() => {
+      const newPath = workspace.findFilePath(id);
+      if (oldPath && newPath && oldPath !== newPath) {
+        fsSyncService.unmarkDeleted(newPath);
+        getWebContainer().then(async wc => {
+           try {
+             // Basic rename by reading old and writing new, then deleting old
+             const content = await wc.fs.readFile(`/${oldPath}`, 'utf8').catch(() => '');
+             await wc.fs.writeFile(`/${newPath}`, content);
+             await wc.fs.rm(`/${oldPath}`, { recursive: true });
+           } catch (e) {
+             console.error('Failed to rename in WebContainer:', e);
+           }
+        });
+      }
+    }, 100);
     setOpenTabs(prev => prev.map(t =>
       t.id === id ? { ...t, name, language: getLanguageFromFilename(name) } : t
     ));
   }, [workspace]);
 
   const handleFileDelete = useCallback((id: string) => {
+    const path = workspace.findFilePath(id);
     workspace.deleteFile(id);
+    if (path) {
+      getWebContainer().then(wc => {
+        wc.fs.rm(`/${path}`, { recursive: true }).catch(console.error);
+      });
+    }
     closeTab(id);
   }, [workspace, closeTab]);
+
+  const handleFileMove = useCallback((dragId: string, targetFolderId: string | null) => {
+    const oldPath = workspace.findFilePath(dragId);
+    workspace.moveNode(dragId, targetFolderId);
+    setTimeout(() => {
+      const newPath = workspace.findFilePath(dragId);
+      if (oldPath && newPath && oldPath !== newPath) {
+        fsSyncService.unmarkDeleted(newPath);
+        getWebContainer().then(async wc => {
+           try {
+             const content = await wc.fs.readFile(`/${oldPath}`, 'utf8').catch(() => '');
+             await wc.fs.writeFile(`/${newPath}`, content);
+             await wc.fs.rm(`/${oldPath}`, { recursive: true });
+           } catch (e) {
+             console.error('Failed to move in WebContainer:', e);
+           }
+        });
+      }
+    }, 100);
+  }, [workspace]);
+
+  const handleImportFolder = useCallback(async (files: { path: string; content: string }[]) => {
+    await workspace.importFolder(files);
+    const wc = await getWebContainer();
+    for (const f of files) {
+       const parts = f.path.split('/');
+       parts.pop(); // remove filename
+       let current = '';
+       for (const p of parts) {
+         current += `/${p}`;
+         await wc.fs.mkdir(current).catch(() => {}); // ignore already exists
+       }
+       await wc.fs.writeFile(`/${f.path}`, f.content).catch(() => {});
+    }
+  }, [workspace]);
 
   // ─── Active file ───
   const activeFile = openTabs.find(t => t.id === activeTabId) ?? null;
@@ -388,34 +477,7 @@ http.createServer((req, res) => {
     }).filter(Boolean) as FileNode[]);
   }, [workspace.files]);  
 
-  // Auto-sync WebContainer structure back to Explorer when terminal creates files
-  const lastFSHashRef = useRef<string>('');
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const wc = await getWebContainer();
-        const getHash = async (path: string): Promise<string> => {
-          const entries = await wc.fs.readdir(path, { withFileTypes: true });
-          let h = '';
-          for (const e of entries) {
-            if (['node_modules', '.git', 'dist', '.next', '.nuxt', 'build'].includes(e.name)) continue;
-            h += e.name + (e.isDirectory() ? 'D' : 'F');
-            if (e.isDirectory()) {
-              h += await getHash(path === '/' ? `/${e.name}` : `${path}/${e.name}`);
-            }
-          }
-          return h;
-        };
-        const currentHash = await getHash('/');
-        if (lastFSHashRef.current && currentHash !== lastFSHashRef.current) {
-           const wcNodes = await readWebContainerFS(workspace.files);
-           workspace.setWorkspaceFiles(wcNodes);
-        }
-        lastFSHashRef.current = currentHash;
-      } catch(e) {}
-    }, 2000);
-    return () => clearInterval(interval);
-  }, [workspace.files, workspace.setWorkspaceFiles]);
+
 
   // ─── Live preview content ───
   const getHtmlContent = () => {
@@ -497,7 +559,6 @@ http.createServer((req, res) => {
       window.open(`https://chatgpt.com/?q=${encodeURIComponent(message)}`, '_blank');
   };
 
-  // Ctrl+Enter global shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
@@ -508,10 +569,44 @@ http.createServer((req, res) => {
         e.preventDefault();
         setBottomPanelOpen(v => !v);
       }
+      if (e.key === 'F11') {
+        e.preventDefault();
+        handleToggleFullscreen();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        const zHandler = (ze: KeyboardEvent) => {
+          if (ze.key.toLowerCase() === 'z') {
+            ze.preventDefault();
+            setIsZenMode(prev => !prev);
+          }
+          window.removeEventListener('keydown', zHandler);
+        };
+        window.addEventListener('keydown', zHandler, { once: true });
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [runActiveFile]);
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
+
+  const handleToggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
+  const handleToggleZenMode = () => {
+    setIsZenMode(v => !v);
+  };
 
   // Command Palette Actions
   const handlePaletteAction = useCallback((action: string, payload?: any) => {
@@ -604,7 +699,8 @@ http.createServer((req, res) => {
           settings={settings}
           onUpdate={updateSetting}
           onReset={resetSettings}
-          onClose={() => setActivityView('explorer')}
+          onClose={() => setShowSettings(false)}
+          initialCategory={settingsCategory}
         />
       );
     }
@@ -685,22 +781,27 @@ http.createServer((req, res) => {
     if (activityView === 'docs') {
       return <DocsViewer />;
     }
+    if (activityView === 'help') {
+      return <HelpCenter />;
+    }
     if (activityView === 'assets') {
       return <AssetLibrary />;
     }
     // Default: explorer
+    const activeProject = workspace.projects.find(p => p.id === workspace.activeProjectId);
     return (
       <FileExplorer
         files={workspace.files}
         selectedFileId={activeTabId}
         onFileSelect={openTab}
-        onFileCreate={workspace.createFile}
+        onFileCreate={handleFileCreate}
         onFileDelete={handleFileDelete}
         onFileRename={handleFileRename}
-        onImportFolder={workspace.importFolder}
-        onSync={async () => {
-          const updatedNodes = await readWebContainerFS(workspace.files);
-          workspace.setWorkspaceFiles(updatedNodes);
+        onMove={handleFileMove}
+        onImportFolder={handleImportFolder}
+        projectName={activeProject?.name}
+        onSync={() => {
+          fsSyncService.forceSync();
         }}
         onLoadTemplate={async (type) => {
           const result = await workspace.loadTemplate(type);
@@ -814,18 +915,30 @@ http.createServer((req, res) => {
         </div>
       )}
       {/* Header */}
-      <SystemHeader
-        activeFile={activeFile}
-        onRun={runActiveFile}
-        onFormat={handleFormat}
-        onExport={exportProject}
-        onPublish={handlePublishClick}
-        onDownloadCurrent={downloadCurrent}
-        terminalOpen={bottomPanelOpen}
-        onToggleTerminal={() => setBottomPanelOpen(v => !v)}
-        rightPanelOpen={rightPanel !== null}
-        onToggleRightPanel={() => setRightPanel(prev => prev ? null : 'preview')}
-      />
+      {!isZenMode && (
+        <SystemHeader
+          activeFile={activeFile}
+          projectName={workspace.projects.find(p => p.id === workspace.activeProjectId)?.name}
+          projectLanguage={workspace.projects.find(p => p.id === workspace.activeProjectId)?.language}
+          onRun={runActiveFile}
+          onFormat={handleFormat}
+          onExport={exportProject}
+          onPublish={handlePublishClick}
+          onDownloadCurrent={downloadCurrent}
+          terminalOpen={bottomPanelOpen}
+          onToggleTerminal={() => setBottomPanelOpen(v => !v)}
+          rightPanelOpen={rightPanel !== null}
+          onToggleRightPanel={() => setRightPanel(prev => prev ? null : 'preview')}
+          onNewProject={() => setShowBootstrap(true)}
+          onOpenProjects={() => setActivityView('projects')}
+          onTogglePreview={() => setRightPanel(prev => prev === 'preview' ? null : 'preview')}
+          serverUrl={serverUrl}
+          isFullscreen={isFullscreen}
+          onToggleFullscreen={handleToggleFullscreen}
+          isZenMode={isZenMode}
+          onToggleZenMode={handleToggleZenMode}
+        />
+      )}
 
       <PublishModal
         isOpen={isPublishModalOpen}
@@ -843,54 +956,79 @@ http.createServer((req, res) => {
       {/* Body */}
       <div className="flex flex-1 overflow-hidden min-h-0">
         {/* Activity bar */}
-        <ActivityBar
-          active={activityView}
-          onChange={(view) => {
-            if (['excalidraw', 'mdn', 'learn'].includes(view)) {
-              const toolId = `tool:${view}`;
-              const existing = openTabs.find(t => t.id === toolId);
-              if (!existing) {
-                const name = view === 'excalidraw' ? 'Whiteboard' : view === 'mdn' ? 'DevDocs' : 'Learn Web Dev';
-                setOpenTabs(prev => [...prev, {
-                  id: toolId,
-                  name,
-                  type: 'file',
-                  language: 'tool',
-                } as any]);
+        {!isZenMode && (
+          <ActivityBar
+            active={activityView}
+            onChange={(view) => {
+              if (['excalidraw', 'mdn', 'learn'].includes(view)) {
+                const toolId = `tool:${view}`;
+                const existing = openTabs.find(t => t.id === toolId);
+                if (!existing) {
+                  const name = view === 'excalidraw' ? 'Whiteboard' : view === 'mdn' ? 'DevDocs' : 'Learn Web Dev';
+                  setOpenTabs(prev => [...prev, {
+                    id: toolId,
+                    name,
+                    type: 'file',
+                    language: 'tool',
+                  } as any]);
+                }
+                setActiveTabId(toolId);
+              } else {
+                setActivityView(view);
               }
-              setActiveTabId(toolId);
-            } else {
-              setActivityView(view);
-            }
-          }}
-          terminalOpen={bottomPanelOpen}
-          onToggleTerminal={() => setBottomPanelOpen(v => !v)}
-          errorCount={errorCount}
-        />
+            }}
+            terminalOpen={bottomPanelOpen}
+            onToggleTerminal={() => setBottomPanelOpen(v => !v)}
+            errorCount={errorCount}
+          />
+        )}
 
         {/* Main layout */}
-        <div className="flex flex-col flex-1 overflow-hidden min-h-0">
+        <div className="flex flex-col flex-1 overflow-hidden min-h-0 relative">
+          
+          <div className="absolute right-4 bottom-4 z-50 pointer-events-auto">
+             <DoctorKitBadge 
+               status={doctorKit.status} 
+               logs={doctorKit.logs} 
+               lastScan={doctorKit.lastScan} 
+               onScan={doctorKit.scan} 
+             />
+          </div>
+          
+          {isZenMode && (
+            <button 
+              onClick={handleToggleZenMode}
+              className="absolute top-4 right-4 z-50 p-2 rounded-full bg-editor-panel border border-editor-border shadow-lg text-editor-text-muted hover:text-editor-text transition-colors"
+              title="Exit Zen Mode (Ctrl+K Z)"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+
           <ResizablePanelGroup direction="vertical" className="flex-1 min-h-0">
             <ResizablePanel defaultSize={75} minSize={30} className="flex-1 min-h-0">
               <ResizablePanelGroup direction="horizontal" className="h-full">
             {/* Sidebar */}
-            {!['excalidraw', 'mdn', 'learn'].includes(activityView) && (
+            {!['excalidraw', 'mdn', 'learn'].includes(activityView) && !isZenMode && (
               <>
                 <ResizablePanel defaultSize={20} minSize={14} maxSize={40}>
                   <div className="flex flex-col h-full border-r border-editor-border bg-editor-sidebar">
-                    {/* Sidebar title */}
-                    <div
-                      className="px-4 py-2 flex-shrink-0 border-b border-editor-border"
-                      style={{ height: 36 }}
-                    >
-                      <p className="text-[11px] font-semibold uppercase tracking-widest text-editor-text-muted">
-                        {activityView === 'explorer' ? 'Explorer'
-                        : activityView === 'search'   ? 'Search'
-                        : activityView === 'projects' ? 'Projects'
-                        : activityView === 'docs'      ? 'Documentation'
-                        : 'Settings'}
-                      </p>
-                    </div>
+                    {/* Sidebar title — only show for non-explorer views that need it */}
+                    {activityView !== 'explorer' && (
+                      <div
+                        className="px-4 py-2 flex-shrink-0 border-b border-editor-border"
+                        style={{ height: 36 }}
+                      >
+                        <p className="text-[11px] font-semibold uppercase tracking-widest text-editor-text-muted">
+                          {activityView === 'search'   ? 'Search'
+                          : activityView === 'projects' ? 'Projects'
+                          : activityView === 'docs'     ? 'Documentation'
+                          : activityView === 'assets'   ? 'Assets'
+                          : activityView === 'help'     ? 'Help Center'
+                          : 'Settings'}
+                        </p>
+                      </div>
+                    )}
                     <div className="flex-1 overflow-hidden">
                       {renderSidebarContent()}
                     </div>
@@ -1052,52 +1190,67 @@ http.createServer((req, res) => {
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={25} minSize={20} maxSize={50}>
                   <div className="flex flex-col h-full border-l border-editor-border">
-                    {/* Right panel tabs */}
+                    {/* Right panel tabs (macOS Segmented Control Style) */}
                     <div
-                      className="flex items-center justify-between flex-shrink-0"
+                      className="flex items-center justify-between flex-shrink-0 px-3"
                       style={{
-                        height: 36,
-                        background: 'hsl(var(--mantle))',
+                        height: 48,
+                        background: 'hsl(var(--crust))',
                         borderBottom: '1px solid hsl(var(--surface1))',
                       }}
                     >
-                      <div className="flex items-center">
+                      <div className="flex items-center p-1 rounded-lg bg-editor-bg border border-editor-border/50 shadow-inner">
                         <button
-                          className={`panel-tab ${rightPanel === 'preview' ? 'active' : ''}`}
+                          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-[11px] font-semibold tracking-wide transition-all duration-200 ${rightPanel === 'preview' ? 'bg-editor-panel text-editor-text shadow-[0_1px_3px_rgba(0,0,0,0.3)] ring-1 ring-white/5' : 'text-editor-text-muted hover:text-editor-text'}`}
                           onClick={() => setRightPanel('preview')}
                         >
-                          <Monitor className="w-3.5 h-3.5" />
+                          <Monitor className={`w-3.5 h-3.5 ${rightPanel === 'preview' ? 'text-blue-400' : ''}`} />
                           Preview
                         </button>
                         <button
-                          className={`panel-tab ${rightPanel === 'ai' ? 'active' : ''}`}
+                          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-[11px] font-semibold tracking-wide transition-all duration-200 ${rightPanel === 'ai' ? 'bg-editor-panel text-editor-text shadow-[0_1px_3px_rgba(0,0,0,0.3)] ring-1 ring-white/5' : 'text-editor-text-muted hover:text-editor-text'}`}
                           onClick={() => setRightPanel('ai')}
                         >
-                          <Bot className="w-3.5 h-3.5" />
+                          <Bot className={`w-3.5 h-3.5 ${rightPanel === 'ai' ? 'text-purple-400' : ''}`} />
                           AI
                         </button>
                         <button
-                          className={`panel-tab ${rightPanel === 'docs' ? 'active' : ''}`}
+                          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-[11px] font-semibold tracking-wide transition-all duration-200 ${rightPanel === 'docs' ? 'bg-editor-panel text-editor-text shadow-[0_1px_3px_rgba(0,0,0,0.3)] ring-1 ring-white/5' : 'text-editor-text-muted hover:text-editor-text'}`}
                           onClick={() => setRightPanel('docs')}
                         >
-                          <BookOpen className="w-3.5 h-3.5" />
+                          <BookOpen className={`w-3.5 h-3.5 ${rightPanel === 'docs' ? 'text-green-400' : ''}`} />
                           Docs
                         </button>
                         <button
-                          className={`panel-tab ${rightPanel === 'assets' ? 'active' : ''}`}
+                          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-md text-[11px] font-semibold tracking-wide transition-all duration-200 ${rightPanel === 'assets' ? 'bg-editor-panel text-editor-text shadow-[0_1px_3px_rgba(0,0,0,0.3)] ring-1 ring-white/5' : 'text-editor-text-muted hover:text-editor-text'}`}
                           onClick={() => setRightPanel('assets')}
                         >
-                          <ImageIcon className="w-3.5 h-3.5" />
+                          <ImageIcon className={`w-3.5 h-3.5 ${rightPanel === 'assets' ? 'text-orange-400' : ''}`} />
                           Assets
                         </button>
                       </div>
-                      <button
-                        onClick={() => setRightPanel(null)}
-                        className="px-2 text-editor-text-dim hover:text-editor-text transition-fast"
-                        title="Close panel"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                      
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setSettingsCategory('diagnostics');
+                            setShowSettings(true);
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-semibold tracking-wide transition-all duration-200 border border-editor-border/50 bg-editor-bg/50 hover:bg-editor-panel hover:text-editor-text ${doctorKit.status !== 'healthy' ? 'text-blue-400 border-blue-500/30 bg-blue-500/10' : 'text-editor-text-muted'}`}
+                          title="System Diagnostics"
+                        >
+                          <Activity className={`w-3.5 h-3.5 ${doctorKit.status === 'scanning' ? 'animate-pulse text-blue-400' : doctorKit.status === 'error' ? 'text-red-400' : 'text-green-400'}`} />
+                          Doctor Kit
+                        </button>
+                        <div className="w-[1px] h-4 bg-editor-border mx-1"></div>
+                        <button
+                          onClick={() => setRightPanel(null)}
+                          className="w-7 h-7 flex items-center justify-center rounded-md text-editor-text-dim hover:text-editor-text hover:bg-editor-panel transition-all"
+                          title="Close panel"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex-1 min-h-0">
@@ -1152,7 +1305,7 @@ http.createServer((req, res) => {
           </ResizablePanelGroup>
         </ResizablePanel>
 
-        {bottomPanelOpen && (
+        {bottomPanelOpen && !isZenMode && (
           <>
             <ResizableHandle withHandle />
             <ResizablePanel defaultSize={25} minSize={10} className="flex flex-col bg-editor-bg z-10">
@@ -1185,12 +1338,42 @@ http.createServer((req, res) => {
                   </button>
                 ))}
               </div>
-              <button
-                onClick={() => setBottomPanelOpen(false)}
-                className="px-2 text-editor-text-dim hover:text-editor-text transition-fast"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-1.5 mr-2">
+                {bottomTab === 'terminal' && (
+                  <>
+                    <button
+                      onClick={() => terminalRefs.current[activeTerminalId]?.clear()}
+                      className="px-2 py-0.5 text-[10px] font-medium rounded text-editor-text-muted hover:text-editor-text hover:bg-editor-active-tab transition-colors border border-transparent hover:border-editor-border"
+                      title="Clear Terminal"
+                    >
+                      <Trash2 className="w-3 h-3 inline mr-1" />
+                      Clear
+                    </button>
+                    <button
+                      onClick={() => terminalRefs.current[activeTerminalId]?.execute('help')}
+                      className="px-2 py-0.5 text-[10px] font-medium rounded text-editor-text-muted hover:text-editor-text hover:bg-editor-active-tab transition-colors border border-transparent hover:border-editor-border"
+                      title="Help Menu"
+                    >
+                      <HelpCircle className="w-3 h-3 inline mr-1" />
+                      Help
+                    </button>
+                    <button
+                      onClick={() => terminalRefs.current[activeTerminalId]?.execute('npm run dev')}
+                      className="px-2 py-0.5 text-[10px] font-medium rounded text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors border border-transparent hover:border-emerald-500/20"
+                      title="Start Dev Server"
+                    >
+                      <Play className="w-3 h-3 inline mr-1" />
+                      Run Dev
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={() => setBottomPanelOpen(false)}
+                  className="px-2 text-editor-text-dim hover:text-editor-text transition-fast ml-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             {/* Panel content */}
@@ -1337,14 +1520,16 @@ http.createServer((req, res) => {
 </div>
 </div>
       {/* Status bar */}
-      <StatusBar
-        activeFile={activeFile}
-        cursorPosition={cursorPos}
-        totalLines={activeFile?.content?.split('\n').length ?? 0}
-        errors={errorCount}
-        warnings={warningCount}
-        onShowProblems={() => { setBottomPanelOpen(true); setBottomTab('problems'); }}
-      />
+      {!isZenMode && (
+        <StatusBar
+          activeFile={activeFile}
+          cursorPosition={cursorPos}
+          totalLines={activeFile?.content?.split('\n').length ?? 0}
+          errors={errorCount}
+          warnings={warningCount}
+          onShowProblems={() => { setBottomPanelOpen(true); setBottomTab('problems'); }}
+        />
+      )}
     </div>
   );
 };

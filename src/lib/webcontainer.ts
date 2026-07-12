@@ -4,37 +4,63 @@ import { getLanguageFromFilename } from './languages';
 /**
  * Singleton instance of the WebContainer.
  * We only want to boot this once per page load.
+ * We store this on the window object to survive Vite HMR reloads.
  */
-let webcontainerInstance: WebContainer | null = null;
-let bootPromise: Promise<WebContainer> | null = null;
+declare global {
+  interface Window {
+    __WEBCONTAINER_INSTANCE__?: WebContainer;
+    __WEBCONTAINER_PROMISE__?: Promise<WebContainer>;
+  }
+}
 
 export async function getWebContainer(): Promise<WebContainer> {
-  if (webcontainerInstance) {
-    return webcontainerInstance;
+  if (window.__WEBCONTAINER_INSTANCE__) {
+    return window.__WEBCONTAINER_INSTANCE__;
   }
 
-  if (!bootPromise) {
-    bootPromise = (async () => {
+  if (!window.__WEBCONTAINER_PROMISE__) {
+    window.__WEBCONTAINER_PROMISE__ = (async () => {
       try {
         console.log('Booting WebContainer...');
         const instance = await WebContainer.boot();
         console.log('WebContainer booted successfully.');
-        webcontainerInstance = instance;
+        window.__WEBCONTAINER_INSTANCE__ = instance;
         return instance;
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to boot WebContainer:', error);
-        bootPromise = null; // Allow retrying
+        // If it says it's already booted but we lost the instance, we can't easily recover
+        // without a full page reload, but let's clear the promise to allow retry if possible.
+        window.__WEBCONTAINER_PROMISE__ = undefined;
+        if (error?.message?.includes('Only a single WebContainer instance can be booted')) {
+           console.warn('Orphaned WebContainer instance detected during HMR. Reloading page to recover...');
+           window.location.reload();
+        }
         throw error;
       }
     })();
   }
 
-  return bootPromise;
+  return window.__WEBCONTAINER_PROMISE__;
+}
+
+export async function clearWebContainerFS() {
+  const wc = await getWebContainer();
+  try {
+    const entries = await wc.fs.readdir('/', { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name !== '.' && entry.name !== '..') {
+        await wc.fs.rm('/' + entry.name, { recursive: true });
+      }
+    }
+  } catch (err) {
+    console.error('Failed to clear WebContainer FS:', err);
+  }
 }
 
 export async function syncFileSystem(nodes: import('@/types').FileNode[]) {
   const wc = await getWebContainer();
   const tree = buildTree(nodes);
+  await clearWebContainerFS();
   await wc.mount(tree);
 }
 
@@ -56,7 +82,7 @@ function buildTree(nodes: import('@/types').FileNode[]): import('@webcontainer/a
 
 export async function readWebContainerFS(existingNodes: import('@/types').FileNode[] = []): Promise<import('@/types').FileNode[]> {
   const wc = await getWebContainer();
-  const ignoreList = ['node_modules', '.git', 'dist', '.next', '.nuxt', 'build'];
+  const ignoreList = ['node_modules', '.git', 'dist', '.next', '.nuxt', 'build', '.static-server.js'];
 
   // Build a map of existing paths to IDs to preserve tab state
   const pathIdMap = new Map<string, string>();

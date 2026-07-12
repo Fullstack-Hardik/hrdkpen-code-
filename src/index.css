@@ -1,41 +1,43 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* HRDK Pen — Premium IDE Design System */
-/* Inspired by VS Code + Catppuccin Mocha */
+/* ═══════════════════════════════════════════════════════════════
+   HRDK Pen — Premium IDE Design System
+   Inspired by VS Code + Apple Human Interface Guidelines
+   ═══════════════════════════════════════════════════════════════ */
 
 @layer base {
   :root, .theme-smart-dark {
-    /* === Core Palette (Professional Slate/Zinc) === */
-    --crust:    240 10% 4%;    /* darkest background */
-    --mantle:   240 5% 8%;     /* sidebar, panels */
-    --base:     240 5% 10%;    /* main editor background */
-    --surface0: 240 5% 14%;    /* active tab, hover states */
-    --surface1: 240 5% 18%;    /* borders, separators */
-    --surface2: 240 5% 24%;    /* secondary elements */
-    --overlay0: 240 5% 45%;    /* dim text */
-    --overlay1: 240 5% 65%;    /* muted text */
-    --overlay2: 240 5% 75%;    /* primary text dim */
-    --text:     240 5% 90%;    /* primary text */
-    --subtext0: 240 5% 85%;
-    --subtext1: 240 5% 80%;
+    /* === Core Palette (Deep Professional Slate) === */
+    --crust:    240 12% 4%;    /* darkest background */
+    --mantle:   240 8%  7%;    /* sidebar, panels */
+    --base:     240 7%  9%;    /* main editor background */
+    --surface0: 240 6%  13%;   /* active tab, hover states */
+    --surface1: 240 5%  18%;   /* borders, separators */
+    --surface2: 240 5%  24%;   /* secondary elements */
+    --overlay0: 240 5%  45%;   /* dim text */
+    --overlay1: 240 5%  62%;   /* muted text */
+    --overlay2: 240 5%  74%;   /* primary text dim */
+    --text:     240 5%  92%;   /* primary text */
+    --subtext0: 240 5%  85%;
+    --subtext1: 240 5%  80%;
 
     /* === Accent Colors === */
-    --blue:     210 100% 60%;  /* links, accent, run button - clean blue */
-    --lavender: 210 50% 60%;   /* muted blue for AI instead of purple */
-    --mauve:    267 84% 81%;   /* keywords */
-    --red:      343 81% 75%;   /* errors, delete */
-    --maroon:   352 66% 73%;
-    --peach:    22 99% 77%;    /* warnings, numbers */
-    --yellow:   40 70% 78%;    /* strings, caution */
-    --green:    142 71% 45%;   /* success, comments */
-    --teal:     175 59% 67%;   /* types, classes */
-    --sky:      197 97% 77%;   /* attributes */
-    --sapphire: 210 83% 72%;   /* HTML tags */
-    --pink:     316 72% 86%;   /* punctuation */
+    --blue:     213 100% 62%;  /* links, accent, run button */
+    --lavender: 213 50%  62%;  /* muted blue for AI */
+    --mauve:    267 84%  81%;  /* keywords */
+    --red:      343 81%  72%;  /* errors, delete */
+    --maroon:   352 66%  70%;
+    --peach:    22  99%  77%;  /* warnings, numbers */
+    --yellow:   40  72%  78%;  /* strings, caution */
+    --green:    142 71%  48%;  /* success, comments */
+    --teal:     175 59%  67%;  /* types, classes */
+    --sky:      197 97%  77%;  /* attributes */
+    --sapphire: 210 83%  72%;  /* HTML tags */
+    --pink:     316 72%  86%;  /* punctuation */
 
     /* === Editor Token Mapping === */
     --editor-bg:           var(--base);
@@ -57,9 +59,133 @@
     --editor-error:        var(--red);
     --editor-info:         var(--blue);
 
+    /* ==========================================================================
+     THEME: Pure Black (AMOLED / High Contrast)
+     ========================================================================== */
+  .theme-pure-black {
+    --bg: 0 0% 0%;
+    --crust: 0 0% 2%;
+    --mantle: 0 0% 5%;
+    --surface0: 0 0% 9%;
+    --surface1: 0 0% 12%;
+    --surface2: 0 0% 15%;
+    --overlay0: 0 0% 45%;
+    --overlay1: 0 0% 55%;
+    --overlay2: 0 0% 65%;
+    --text: 0 0% 95%;
+    --subtext0: 0 0% 85%;
+    --subtext1: 0 0% 75%;
+    
+    --blue: 217 92% 51%;
+    --green: 142 71% 45%;
+    --red: 348 83% 47%;
+    --yellow: 43 96% 56%;
+    
+    --editor-bg: var(--bg);
+    --editor-sidebar: var(--mantle);
+    --editor-panel: var(--crust);
+    --editor-active-tab: var(--surface1);
+    --editor-border: var(--surface2);
+    --editor-text: var(--text);
+    --editor-text-muted: var(--overlay0);
+    --editor-text-dim: var(--overlay1);
+    --editor-accent: var(--blue);
+    --editor-error: var(--red);
+    --editor-warning: var(--yellow);
+    --editor-success: var(--green);
+  }
+
+  /* ==========================================================================
+     THEME: Graphite (Warm Gray)
+     ========================================================================== */
+  .theme-graphite {
+    --bg: 220 5% 15%;
+    --crust: 220 5% 12%;
+    --mantle: 220 5% 18%;
+    --surface0: 220 5% 22%;
+    --surface1: 220 5% 26%;
+    --surface2: 220 5% 30%;
+    --overlay0: 220 5% 55%;
+    --overlay1: 220 5% 65%;
+    --overlay2: 220 5% 75%;
+    --text: 220 10% 90%;
+    --subtext0: 220 10% 80%;
+    --subtext1: 220 10% 70%;
+    
+    --blue: 210 100% 65%;
+    --green: 150 50% 50%;
+    --red: 0 70% 60%;
+    --yellow: 40 80% 60%;
+    
+    --editor-bg: var(--bg);
+    --editor-sidebar: var(--mantle);
+    --editor-panel: var(--crust);
+    --editor-active-tab: var(--surface1);
+    --editor-border: var(--surface2);
+    --editor-text: var(--text);
+    --editor-text-muted: var(--overlay0);
+    --editor-text-dim: var(--overlay1);
+    --editor-accent: var(--blue);
+    --editor-error: var(--red);
+    --editor-warning: var(--yellow);
+    --editor-success: var(--green);
+  }
+
+  /* ==========================================================================
+     THEME: Midnight (Deep Blue)
+     ========================================================================== */
+  .theme-midnight {
+    --bg: 230 25% 10%;
+    --crust: 230 25% 8%;
+    --mantle: 230 25% 12%;
+    --surface0: 230 25% 16%;
+    --surface1: 230 25% 20%;
+    --surface2: 230 25% 24%;
+    --overlay0: 230 15% 55%;
+    --overlay1: 230 15% 65%;
+    --overlay2: 230 15% 75%;
+    --text: 230 30% 90%;
+    --subtext0: 230 30% 80%;
+    --subtext1: 230 30% 70%;
+    
+    --blue: 220 80% 60%;
+    --green: 160 60% 50%;
+    --red: 350 70% 60%;
+    --yellow: 45 90% 60%;
+    
+    --editor-bg: var(--bg);
+    --editor-sidebar: var(--mantle);
+    --editor-panel: var(--crust);
+    --editor-active-tab: var(--surface1);
+    --editor-border: var(--surface2);
+    --editor-text: var(--text);
+    --editor-text-muted: var(--overlay0);
+    --editor-text-dim: var(--overlay1);
+    --editor-accent: var(--blue);
+    --editor-error: var(--red);
+    --editor-warning: var(--yellow);
+    --editor-success: var(--green);
+  }
+
+  /* ==========================================================================
+     THEME: Visual Studio Light
+     ========================================================================== */
+
     /* === Activity Bar === */
     --activity-bar-bg:     var(--crust);
     --activity-bar-width:  48px;
+
+    /* === Glass Effect === */
+    --glass-bg:     rgba(13, 13, 20, 0.72);
+    --glass-border: rgba(255, 255, 255, 0.07);
+    --glass-blur:   16px;
+
+    /* === Shadows === */
+    --shadow-sm:  0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-md:  0 4px 12px rgba(0,0,0,0.5), 0 2px 6px rgba(0,0,0,0.3);
+    --shadow-lg:  0 12px 32px rgba(0,0,0,0.6), 0 4px 12px rgba(0,0,0,0.4);
+    --shadow-glow-blue: 0 0 20px hsl(var(--blue) / 0.25);
+    --shadow-glow-green: 0 0 20px hsl(var(--green) / 0.25);
 
     /* === Shadcn Design Tokens === */
     --background:           var(--editor-bg);
@@ -81,11 +207,12 @@
     --border:               var(--surface1);
     --input:                var(--surface0);
     --ring:                 var(--blue);
-    --radius:               0.375rem;
+    --radius:               0.5rem;
 
     /* === Transitions === */
-    --tx-smooth: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-    --tx-fast:   all 0.08s ease-out;
+    --tx-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --tx-fast:   all 0.1s ease-out;
+    --tx-spring: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   .theme-dracula {
@@ -102,17 +229,17 @@
     --subtext0: 231 15% 90%;
     --subtext1: 231 15% 85%;
 
-    --blue:     265 89% 78%; /* Dracula purple */
+    --blue:     265 89% 78%;
     --lavender: 265 89% 85%;
-    --mauve:    326 100% 74%; /* pink */
-    --red:      0 100% 67%;
-    --maroon:   0 100% 75%;
-    --peach:    31 100% 71%; /* orange */
-    --yellow:   60 100% 60%; /* yellow */
-    --green:    135 94% 65%; /* green */
-    --teal:     191 97% 77%; /* cyan */
-    --sky:      191 97% 85%;
-    --sapphire: 191 97% 70%;
+    --mauve:    326 100% 74%;
+    --red:      0   100% 67%;
+    --maroon:   0   100% 75%;
+    --peach:    31  100% 71%;
+    --yellow:   60  100% 60%;
+    --green:    135 94%  65%;
+    --teal:     191 97%  77%;
+    --sky:      191 97%  85%;
+    --sapphire: 191 97%  70%;
     --pink:     326 100% 80%;
   }
 
@@ -135,12 +262,68 @@
     --mauve:    270 50% 65%;
     --red:      350 70% 60%;
     --maroon:   350 70% 65%;
-    --peach:    25 80% 60%;
-    --yellow:   45 85% 60%;
+    --peach:    25  80% 60%;
+    --yellow:   45  85% 60%;
     --green:    120 40% 50%;
     --teal:     180 50% 60%;
     --sky:      195 85% 65%;
     --sapphire: 210 80% 65%;
+    --pink:     330 60% 65%;
+  }
+
+  .theme-nord {
+    --crust:    220 16% 18%;
+    --mantle:   220 16% 20%;
+    --base:     220 16% 22%;
+    --surface0: 220 16% 26%;
+    --surface1: 220 16% 30%;
+    --surface2: 220 16% 36%;
+    --overlay0: 218 20% 55%;
+    --overlay1: 218 20% 70%;
+    --overlay2: 218 20% 80%;
+    --text:     218 27% 92%;
+    --subtext0: 218 27% 90%;
+    --subtext1: 218 27% 85%;
+
+    --blue:     213 32% 52%;
+    --lavender: 213 32% 62%;
+    --mauve:    289 44% 68%;
+    --red:      354 42% 56%;
+    --maroon:   354 42% 60%;
+    --peach:    14  51% 63%;
+    --yellow:   43  90% 69%;
+    --green:    92  28% 65%;
+    --teal:     179 25% 65%;
+    --sky:      193 43% 67%;
+    --sapphire: 213 32% 52%;
+    --pink:     310 40% 60%;
+  }
+
+  .theme-oceanic {
+    --crust:    207 26% 14%;
+    --mantle:   207 26% 16%;
+    --base:     207 26% 18%;
+    --surface0: 207 26% 24%;
+    --surface1: 207 26% 28%;
+    --surface2: 207 26% 32%;
+    --overlay0: 207 26% 50%;
+    --overlay1: 207 26% 65%;
+    --overlay2: 207 26% 80%;
+    --text:     207 26% 95%;
+    --subtext0: 207 26% 90%;
+    --subtext1: 207 26% 85%;
+
+    --blue:     207 82% 66%;
+    --lavender: 207 82% 76%;
+    --mauve:    286 60% 67%;
+    --red:      343 82% 66%;
+    --maroon:   343 82% 76%;
+    --peach:    20  82% 66%;
+    --yellow:   40  82% 66%;
+    --green:    150 50% 55%;
+    --teal:     180 50% 55%;
+    --sky:      200 80% 60%;
+    --sapphire: 207 82% 66%;
     --pink:     330 60% 65%;
   }
 }
@@ -165,38 +348,51 @@
   }
 
   /* === Custom Scrollbars === */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
     background: hsl(var(--surface1));
-    border-radius: 3px;
+    border-radius: 10px;
   }
-  ::-webkit-scrollbar-thumb:hover {
-    background: hsl(var(--surface2));
-  }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--surface2)); }
+  ::-webkit-scrollbar-corner { background: transparent; }
 
   /* === Selection === */
   ::selection {
-    background: hsl(var(--blue) / 0.3);
+    background: hsl(var(--blue) / 0.28);
     color: hsl(var(--text));
   }
 }
 
 @layer utilities {
-  /* === Background utilities === */
+  /* ─── Background utilities ─── */
   .bg-editor-bg           { background-color: hsl(var(--editor-bg)); }
   .bg-editor-sidebar      { background-color: hsl(var(--editor-sidebar)); }
-  .bg-editor-panel        { background-color: hsl(var(--editor-panel) / 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+  .bg-editor-panel        { background-color: hsl(var(--editor-panel)); }
   .bg-editor-active-tab   { background-color: hsl(var(--editor-active-tab)); }
   .bg-editor-accent       { background-color: hsl(var(--editor-accent)); }
   .bg-activity-bar        { background-color: hsl(var(--activity-bar-bg)); }
 
-  /* === Text utilities === */
+  /* ─── Glassmorphism ─── */
+  .glass {
+    background: var(--glass-bg);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--glass-border);
+  }
+  .glass-light {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .glass-panel {
+    background: hsl(var(--editor-panel) / 0.88);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  /* ─── Text utilities ─── */
   .text-editor-text       { color: hsl(var(--editor-text)); }
   .text-editor-text-muted { color: hsl(var(--editor-text-muted)); }
   .text-editor-text-dim   { color: hsl(var(--editor-text-dim)); }
@@ -205,15 +401,21 @@
   .text-editor-warning    { color: hsl(var(--editor-warning)); }
   .text-editor-error      { color: hsl(var(--editor-error)); }
 
-  /* === Border utilities === */
+  /* ─── Border utilities ─── */
   .border-editor-border   { border-color: hsl(var(--editor-border)); }
   .border-editor-accent   { border-color: hsl(var(--editor-accent)); }
 
-  /* === Animation utilities === */
-  .transition-editor { transition: var(--tx-smooth); }
-  .transition-fast   { transition: var(--tx-fast); }
+  /* ─── Shadow utilities ─── */
+  .shadow-editor-sm       { box-shadow: var(--shadow-sm); }
+  .shadow-editor-md       { box-shadow: var(--shadow-md); }
+  .shadow-editor-lg       { box-shadow: var(--shadow-lg); }
 
-  /* === IDE Layout === */
+  /* ─── Animation utilities ─── */
+  .transition-editor  { transition: var(--tx-smooth); }
+  .transition-fast    { transition: var(--tx-fast); }
+  .transition-spring  { transition: var(--tx-spring); }
+
+  /* ─── IDE Layout ─── */
   .ide-root {
     display: flex;
     flex-direction: column;
@@ -222,41 +424,60 @@
     background-color: hsl(var(--editor-bg));
   }
 
+  /* ─── macOS Traffic Lights ─── */
+  .mac-traffic-light {
+    @apply flex items-center gap-1.5;
+  }
+  .mac-btn {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    transition: filter 0.15s ease;
+    flex-shrink: 0;
+  }
+  .mac-btn:hover { filter: brightness(1.2); }
+  .mac-btn-close   { background: #ff5f57; }
+  .mac-btn-min     { background: #febc2e; }
+  .mac-btn-max     { background: #28c840; }
+
+  /* ─── Activity Bar ─── */
   .activity-bar-icon {
-    @apply flex items-center justify-center w-12 h-12 relative transition-fast cursor-pointer;
+    @apply flex items-center justify-center w-12 h-12 relative cursor-pointer;
     color: hsl(var(--overlay1));
+    transition: var(--tx-fast);
   }
   .activity-bar-icon:hover {
     color: hsl(var(--text));
+    background: hsl(var(--surface0) / 0.5);
   }
   .activity-bar-icon.active {
     color: hsl(var(--text));
-    border-left: 2px solid hsl(var(--blue));
   }
-  .activity-bar-icon.active::before {
-    content: '';
+  .activity-bar-indicator {
     position: absolute;
     left: 0;
     top: 50%;
     transform: translateY(-50%);
     width: 2px;
-    height: 24px;
+    height: 20px;
     background: hsl(var(--blue));
     border-radius: 0 2px 2px 0;
+    box-shadow: var(--shadow-glow-blue);
   }
 
-  /* === Tab styles === */
+  /* ─── Tab styles ─── */
   .editor-tab {
-    @apply flex items-center gap-1.5 px-4 py-2 text-xs border-r border-editor-border cursor-pointer select-none flex-shrink-0;
+    @apply flex items-center gap-1.5 px-3 py-2 text-xs border-r cursor-pointer select-none flex-shrink-0;
     min-width: 80px;
     max-width: 180px;
+    border-right-color: hsl(var(--surface1));
     color: hsl(var(--overlay1));
     background-color: hsl(var(--editor-inactive-tab));
     transition: var(--tx-fast);
   }
   .editor-tab:hover {
     color: hsl(var(--text));
-    background-color: hsl(var(--surface0) / 0.5);
+    background-color: hsl(var(--surface0) / 0.6);
   }
   .editor-tab.active {
     color: hsl(var(--text));
@@ -266,23 +487,20 @@
   }
 
   .tab-close {
-    @apply opacity-0 rounded-sm flex items-center justify-center ml-auto flex-shrink-0;
+    @apply opacity-0 rounded flex items-center justify-center ml-auto flex-shrink-0;
     width: 14px;
     height: 14px;
+    transition: var(--tx-fast);
   }
   .editor-tab:hover .tab-close,
-  .editor-tab.active .tab-close {
-    @apply opacity-60;
-  }
-  .tab-close:hover {
-    @apply !opacity-100 bg-white/10;
-  }
+  .editor-tab.active .tab-close { @apply opacity-60; }
+  .tab-close:hover { @apply !opacity-100; background: hsl(var(--surface1)); }
 
-  /* === Panel tabs === */
+  /* ─── Panel tabs ─── */
   .panel-tab {
-    @apply flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer select-none uppercase tracking-wider;
+    @apply flex items-center gap-1.5 px-3 py-1.5 text-xs cursor-pointer select-none;
     color: hsl(var(--overlay1));
-    border-bottom: 1px solid transparent;
+    border-bottom: 2px solid transparent;
     transition: var(--tx-fast);
   }
   .panel-tab:hover { color: hsl(var(--text)); }
@@ -291,51 +509,162 @@
     border-bottom-color: hsl(var(--blue));
   }
 
-  /* === Input focus ring === */
+  /* ─── Premium Input ─── */
   input:focus, textarea:focus {
     outline: none;
-    box-shadow: 0 0 0 1px hsl(var(--blue));
+    box-shadow: 0 0 0 1.5px hsl(var(--blue) / 0.8), 0 0 8px hsl(var(--blue) / 0.2);
   }
 
-  /* === Code font === */
+  /* ─── Code font ─── */
   .font-code {
     font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   }
 
-  /* === Glow effects === */
-  .glow-blue {
-    box-shadow: 0 0 12px hsl(var(--blue) / 0.25);
-  }
-  .glow-green {
-    box-shadow: 0 0 12px hsl(var(--green) / 0.25);
-  }
+  /* ─── Glow effects ─── */
+  .glow-blue  { box-shadow: var(--shadow-glow-blue); }
+  .glow-green { box-shadow: var(--shadow-glow-green); }
 
-  /* === User select control === */
-  .no-select { user-select: none; }
+  /* ─── User select ─── */
+  .no-select    { user-select: none; }
   .allow-select { user-select: text !important; }
 
-  /* === Fade animations === */
-  @keyframes fade-in {
-    from { opacity: 0; transform: translateY(4px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  .animate-fade-in {
-    animation: fade-in 0.15s ease-out;
-  }
-
-  @keyframes slide-up {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  .animate-slide-up {
-    animation: slide-up 0.2s ease-out;
+  /* ─── Skeleton loading ─── */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--surface0)) 25%,
+      hsl(var(--surface1)) 50%,
+      hsl(var(--surface0)) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.4s ease infinite;
   }
 
-  @keyframes spin-slow {
-    to { transform: rotate(360deg); }
+  /* ─── Premium button ─── */
+  .btn-premium {
+    @apply relative overflow-hidden;
+    background: linear-gradient(135deg, hsl(var(--blue) / 0.9), hsl(213 100% 52% / 0.9));
+    box-shadow: 0 2px 8px hsl(var(--blue) / 0.4), inset 0 1px 0 rgba(255,255,255,0.1);
+    transition: var(--tx-smooth);
   }
-  .animate-spin-slow {
-    animation: spin-slow 2s linear infinite;
+  .btn-premium:hover {
+    box-shadow: 0 4px 16px hsl(var(--blue) / 0.5), inset 0 1px 0 rgba(255,255,255,0.15);
+    transform: translateY(-1px);
+  }
+  .btn-premium:active { transform: translateY(0); }
+
+  /* ─── Run button ─── */
+  .btn-run {
+    background: linear-gradient(135deg, hsl(var(--green) / 0.85), hsl(142 71% 38% / 0.85));
+    box-shadow: 0 2px 8px hsl(var(--green) / 0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+    transition: var(--tx-smooth);
+  }
+  .btn-run:hover {
+    box-shadow: 0 4px 16px hsl(var(--green) / 0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+    transform: translateY(-1px);
+  }
+
+  /* ─── Custom scrollbar for specific containers ─── */
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--surface2));
+    border-radius: 10px;
+  }
+
+  /* ─── File explorer item ─── */
+  .explorer-item {
+    @apply flex items-center gap-1.5 py-[3px] px-2 rounded-sm cursor-pointer select-none;
+    color: hsl(var(--overlay2));
+    font-size: 13px;
+    transition: background 0.1s ease, color 0.1s ease;
+  }
+  .explorer-item:hover {
+    background: hsl(var(--surface0) / 0.7);
+    color: hsl(var(--text));
+  }
+  .explorer-item.selected {
+    background: hsl(var(--surface0));
+    color: hsl(var(--text));
+  }
+
+  /* ─── macOS Terminal chrome ─── */
+  .terminal-chrome {
+    background: hsl(var(--crust));
+    border-bottom: 1px solid hsl(var(--surface1));
+  }
+
+  /* ─── Context menu ─── */
+  .premium-context-menu {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-lg);
+    border-radius: 10px;
   }
 }
 
+/* ─── Keyframe Animations ─── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fade-in 0.15s ease-out; }
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up { animation: slide-up 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-down { animation: slide-down 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in { animation: scale-in 0.15s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@keyframes spin-slow {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow { animation: spin-slow 2s linear infinite; }
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px hsl(var(--blue) / 0.3); }
+  50%       { box-shadow: 0 0 20px hsl(var(--blue) / 0.6); }
+}
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+@keyframes bounce-in {
+  0%   { transform: scale(0.8); opacity: 0; }
+  60%  { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.animate-bounce-in { animation: bounce-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* Progress bar */
+@keyframes progress-pulse {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+.animate-progress { animation: progress-pulse 1.5s ease infinite; }
+
+/* ─── Staggered card animations ─── */
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.10s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.20s; }
+.stagger-5 { animation-delay: 0.25s; }
+.stagger-6 { animation-delay: 0.30s; }

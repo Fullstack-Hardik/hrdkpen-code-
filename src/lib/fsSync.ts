@@ -1,3 +1,17 @@
+/**
+ * FSSyncService — HRDK Pen
+ *
+ * Reads from the WebContainer filesystem and merges changes into the
+ * in-memory workspace state.
+ *
+ * KEY FIX (Phase 2):
+ *   - Removed automatic polling / startWatching.  Polling caused deleted
+ *     files to reappear because the WC FS still contained them.
+ *   - All syncs are now triggered manually (e.g. after an npm install).
+ *   - A `deletedPaths` registry permanently blocks any path that the user
+ *     has explicitly deleted from ever being reintroduced by a WC sync.
+ */
+
 import { getWebContainer, readWebContainerFS } from './webcontainer';
 import type { FileNode } from '@/types';
 
@@ -6,68 +20,102 @@ type SyncListener = (files: FileNode[]) => void;
 class FSSyncService {
   private listener: SyncListener | null = null;
   private getCurrentFiles: (() => FileNode[]) | null = null;
-  private isWatching = false;
-  private watchDebounceTimer: any = null;
+  private watchInterval: ReturnType<typeof setInterval> | null = null;
 
-  async startWatching() {
-    if (this.isWatching) return;
-    try {
-      const wc = await getWebContainer();
-      
-      if (typeof wc.fs.watch === 'function') {
-         try {
-           const watcher = wc.fs.watch('/', { recursive: true }, (event, filename) => {
-              if (filename && (filename.includes('node_modules') || filename.includes('.git'))) {
-                 return;
-              }
-              this.scheduleSync();
-           });
-           this.isWatching = true;
-         } catch (e) {
-           console.warn('Recursive fs.watch failed, falling back to polling.', e);
-           this.startPolling();
-         }
-      } else {
-        this.startPolling();
-      }
-    } catch (e) {
-      console.error('Failed to start FSSyncService:', e);
-    }
+  /**
+   * Paths that the user has explicitly deleted.
+   * These are NEVER reintroduced by a WC sync, even if the file still
+   * exists in the WebContainer filesystem.
+   * Format: '/filename' or '/folder/filename'
+   */
+  private deletedPaths = new Set<string>();
+
+  // ─── Public API ───────────────────────────────────────────────
+
+  /** Register a path as permanently deleted from this session. */
+  markDeleted(wcPath: string) {
+    this.deletedPaths.add(wcPath.startsWith('/') ? wcPath : `/${wcPath}`);
   }
 
-  private startPolling() {
-    this.isWatching = true;
-    setInterval(() => {
-      this.scheduleSync();
-    }, 3000); // Poll every 3 seconds
+  /** Remove a path from the deleted registry (e.g. when re-creating the same name). */
+  unmarkDeleted(wcPath: string) {
+    this.deletedPaths.delete(wcPath.startsWith('/') ? wcPath : `/${wcPath}`);
   }
 
-  private scheduleSync() {
-    if (this.watchDebounceTimer) clearTimeout(this.watchDebounceTimer);
-    this.watchDebounceTimer = setTimeout(async () => {
-      await this.forceSync();
-    }, 500); // 500ms debounce
+  /** Clear all deleted-path markers (e.g. on project switch). */
+  clearDeletedPaths() {
+    this.deletedPaths.clear();
   }
 
+  /** Whether a path is in the deleted registry. */
+  isDeleted(wcPath: string): boolean {
+    return this.deletedPaths.has(wcPath.startsWith('/') ? wcPath : `/${wcPath}`);
+  }
+
+  /**
+   * Manually trigger a sync from WC → workspace state.
+   * Called after npm install or other operations that generate new files.
+   * Respects the deletedPaths registry.
+   */
   async forceSync() {
     try {
       const existing = this.getCurrentFiles ? this.getCurrentFiles() : [];
-      const nodes = await readWebContainerFS(existing);
-      if (this.listener) this.listener(nodes);
+      const raw = await readWebContainerFS(existing);
+      const filtered = this.filterDeleted(raw);
+      if (this.listener) this.listener(filtered);
     } catch (e) {
-      console.error('FSSyncService forceSync failed:', e);
+      console.error('[FSSyncService] forceSync failed:', e);
     }
   }
 
+  /** Register a callback that receives the merged file tree on each sync. */
   subscribe(listener: SyncListener, getCurrentFiles: () => FileNode[]) {
     this.listener = listener;
     this.getCurrentFiles = getCurrentFiles;
-    // Trigger initial sync
-    this.forceSync();
+    this.startWatching();
     return () => {
       this.listener = null;
       this.getCurrentFiles = null;
+      this.stopWatching();
     };
+  }
+
+  /** Start polling the WebContainer FS for changes. */
+  startWatching() {
+    if (this.watchInterval) return;
+    // Initial sync
+    this.forceSync();
+    // Poll every 2 seconds
+    this.watchInterval = setInterval(() => {
+      this.forceSync();
+    }, 2000);
+  }
+
+  /** Stop polling the WebContainer FS. */
+  stopWatching() {
+    if (this.watchInterval) {
+      clearInterval(this.watchInterval);
+      this.watchInterval = null;
+    }
+  }
+
+  // ─── Private helpers ──────────────────────────────────────────
+
+  private filterDeleted(nodes: FileNode[], prefix = ''): FileNode[] {
+    return nodes
+      .filter(node => {
+        const path = `${prefix}/${node.name}`;
+        return !this.deletedPaths.has(path);
+      })
+      .map(node => {
+        if (node.type === 'folder' && node.children) {
+          return {
+            ...node,
+            children: this.filterDeleted(node.children, `${prefix}/${node.name}`),
+          };
+        }
+        return node;
+      });
   }
 }
 
